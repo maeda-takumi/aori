@@ -1,0 +1,21 @@
+<?php
+// header.php
+?>
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><?= isset($pageTitle) ? htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') : 'LMessage 管理ツール'; ?></title>
+
+  <!-- 毎回読み込み（キャッシュバスター） -->
+  <link rel="stylesheet" href="style/style.css?v=<?= time(); ?>">
+</head>
+<body>
+  <header class="site-header glass">
+    <div class="container">
+      <h1 class="site-title">LMessage 管理ツール</h1>
+    </div>
+  </header>
+
+  <main class="container main-content">
