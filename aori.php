@@ -6,6 +6,24 @@ $messages = [];
 $errors = [];
 $rows = [];
 $blankSupportMarkToken = '__BLANK__';
+$aoriLabelOptions = [
+    '返信が返ってきた',
+    '返信が帰って来ない',
+    'FBを送っているが返信が帰って来ない',
+    '荒れている',
+    '普通',
+    '返金、クーリングオフ',
+    '会話継続',
+    'サポート面談',
+    'ライティング',
+    '楽天ROOM',
+    '塗り絵',
+    '無在庫',
+    '返金',
+    '定期的に煽ってる',
+    'カリキュラムを一度もやっていない',
+    '不安がっている',
+];
 
 $ownerOptions = [
     'all' => 'すべて',
@@ -36,6 +54,31 @@ try {
         $messages[] = 'contactsテーブルにsend_atカラムを追加しました。';
     }
 
+    $contactManagementExists = $pdo->query("SHOW TABLES LIKE 'contact_management'")->fetch() !== false;
+    if (!$contactManagementExists) {
+        $pdo->exec(
+            'CREATE TABLE contact_management (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                contact_id INT UNSIGNED NOT NULL,
+                aori_labels TEXT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_contact_id (contact_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+        );
+        $messages[] = 'contact_managementテーブルを作成しました。';
+    } else {
+        $managementColumnStmt = $pdo->query("SHOW COLUMNS FROM contact_management LIKE 'aori_labels'");
+        if ($managementColumnStmt->fetch() === false) {
+            $pdo->exec('ALTER TABLE contact_management ADD COLUMN aori_labels TEXT NULL AFTER contact_id');
+            $messages[] = 'contact_managementテーブルにaori_labelsカラムを追加しました。';
+        }
+
+        $contactIdUniqueStmt = $pdo->query("SHOW INDEX FROM contact_management WHERE Key_name = 'uniq_contact_id'");
+        if ($contactIdUniqueStmt->fetch() === false) {
+            $pdo->exec('ALTER TABLE contact_management ADD UNIQUE KEY uniq_contact_id (contact_id)');
+        }
+    }
     $supportMarkStmt = $pdo->query(
         "SELECT DISTINCT support_mark
         FROM contacts
@@ -109,6 +152,51 @@ try {
         exit;
     }
 
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && (($_POST['action'] ?? '') === 'save_aori_labels')) {
+        header('Content-Type: application/json; charset=UTF-8');
+
+        $contactId = filter_input(INPUT_POST, 'contact_id', FILTER_VALIDATE_INT);
+        $labels = $_POST['labels'] ?? [];
+        if (!is_array($labels)) {
+            $labels = [];
+        }
+
+        if ($contactId === false || $contactId === null) {
+            http_response_code(400);
+            echo json_encode([
+                'status' => 'error',
+                'message' => '更新対象のIDが不正です。',
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        $normalizedLabels = [];
+        foreach ($labels as $label) {
+            $label = trim((string)$label);
+            if ($label !== '' && in_array($label, $aoriLabelOptions, true)) {
+                $normalizedLabels[] = $label;
+            }
+        }
+        $normalizedLabels = array_values(array_unique($normalizedLabels));
+        $labelText = implode('|', $normalizedLabels);
+
+        $upsertStmt = $pdo->prepare(
+            'INSERT INTO contact_management (contact_id, aori_labels, created_at, updated_at)
+             VALUES (:contact_id, :aori_labels, NOW(), NOW())
+             ON DUPLICATE KEY UPDATE aori_labels = VALUES(aori_labels), updated_at = NOW()'
+        );
+        $upsertStmt->execute([
+            'contact_id' => $contactId,
+            'aori_labels' => $labelText,
+        ]);
+
+        echo json_encode([
+            'status' => 'ok',
+            'message' => '状態を保存しました。',
+            'labels' => $normalizedLabels,
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
     $conditions = [];
     $params = [];
 
@@ -158,19 +246,22 @@ try {
     }
 
     $sql = "SELECT
-            id,
-            line_display_name,
-            system_display_name,
-            support_mark,
-            last_message_received_at,
-            send_at,
-            tag_hirabayashi,
-            tag_shimazaki,
-            tag_manpuku,
-            lmessage_personal_memo,
-            chat_url,
-            friend_id
-        FROM contacts";
+            contacts.id,
+            contacts.line_display_name,
+            contacts.system_display_name,
+            contacts.support_mark,
+            contacts.last_message_received_at,
+            contacts.send_at,
+            contacts.tag_hirabayashi,
+            contacts.tag_shimazaki,
+            contacts.tag_manpuku,
+            contacts.lmessage_personal_memo,
+            contacts.line_user_id,
+            contacts.chat_url,
+            contacts.friend_id,
+            cm.aori_labels
+        FROM contacts
+        LEFT JOIN contact_management cm ON cm.contact_id = contacts.id";
 
     if (!empty($conditions)) {
         $sql .= "\nWHERE " . implode("\n  AND ", $conditions);
@@ -252,7 +343,32 @@ require __DIR__ . '/header.php';
         <?php foreach ($rows as $row): ?>
           <li class="aori-item glass">
             <div class="aori-meta">
-              <strong><?= htmlspecialchars((string)($row['line_display_name'] ?: '名称未設定'), ENT_QUOTES, 'UTF-8'); ?></strong>
+              <?php
+                $savedLabels = [];
+                if (!empty($row['aori_labels'])) {
+                    $savedLabels = array_values(array_filter(array_map('trim', explode('|', (string)$row['aori_labels']))));
+                }
+              ?>
+              <strong class="aori-name-row">
+                <?= htmlspecialchars((string)($row['line_display_name'] ?: '名称未設定'), ENT_QUOTES, 'UTF-8'); ?>
+                <button
+                  class="aori-edit-icon-btn"
+                  type="button"
+                  data-aori-edit-button
+                  data-contact-id="<?= (int)$row['id']; ?>"
+                  data-current-labels="<?= htmlspecialchars(json_encode($savedLabels, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>"
+                  aria-label="状態ラベルを編集"
+                >
+                  <img src="img/edit.png" alt="編集">
+                </button>
+              </strong>
+              <?php if (!empty($savedLabels)): ?>
+                <div class="aori-label-badges">
+                  <?php foreach ($savedLabels as $savedLabel): ?>
+                    <span class="aori-label-badge aori-label-<?= abs(crc32($savedLabel)) % 8; ?>"><?= htmlspecialchars($savedLabel, ENT_QUOTES, 'UTF-8'); ?></span>
+                  <?php endforeach; ?>
+                </div>
+              <?php endif; ?>
               <span>システム表示名: <?= htmlspecialchars((string)($row['system_display_name'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
               <span>対応マーク: <?= htmlspecialchars((string)($row['support_mark'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
               <span>最終受信日時: <?= htmlspecialchars((string)($row['last_message_received_at'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
@@ -301,6 +417,25 @@ require __DIR__ . '/header.php';
     <div class="chat-modal__actions">
       <button type="button" class="btn chat-modal__cancel" data-chat-modal-cancel>キャンセル</button>
       <button type="button" class="btn" id="chat-modal-ok">OK</button>
+    </div>
+  </div>
+</div>
+<div id="aori-label-modal" class="chat-modal" hidden>
+  <div class="chat-modal__backdrop" data-aori-modal-close></div>
+  <div class="chat-modal__dialog glass" role="dialog" aria-modal="true" aria-labelledby="aori-label-modal-title">
+    <h3 id="aori-label-modal-title">状態ラベル編集</h3>
+    <form id="aori-label-form" class="aori-label-form">
+      <?php foreach ($aoriLabelOptions as $label): ?>
+        <label class="aori-label-option">
+          <input type="checkbox" name="labels[]" value="<?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8'); ?>">
+          <span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8'); ?></span>
+        </label>
+      <?php endforeach; ?>
+    </form>
+    <p id="aori-label-modal-status" class="chat-modal__status" hidden></p>
+    <div class="chat-modal__actions">
+      <button type="button" class="btn chat-modal__cancel" data-aori-modal-cancel>キャンセル</button>
+      <button type="button" class="btn" id="aori-label-save">保存</button>
     </div>
   </div>
 </div>

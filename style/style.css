@@ -254,6 +254,54 @@ body {
   gap: 4px;
 }
 
+.aori-name-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.aori-edit-icon-btn {
+  border: 1px solid rgba(31, 35, 64, 0.12);
+  background: rgba(255, 255, 255, 0.86);
+  border-radius: 10px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.aori-edit-icon-btn img {
+  width: 16px;
+  height: 16px;
+}
+
+.aori-label-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.aori-label-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #263238;
+}
+
+.aori-label-0 { background: #ffecb3; }
+.aori-label-1 { background: #b3e5fc; }
+.aori-label-2 { background: #c8e6c9; }
+.aori-label-3 { background: #f8bbd0; }
+.aori-label-4 { background: #e1bee7; }
+.aori-label-5 { background: #ffe0b2; }
+.aori-label-6 { background: #d1c4e9; }
+.aori-label-7 { background: #b2dfdb; }
 .aori-meta span {
   color: var(--muted);
   font-size: 0.92rem;
@@ -425,4 +473,20 @@ body {
   border: 1px solid rgba(31, 35, 64, 0.1);
   color: var(--text) !important;
   line-height: 1.5;
+}
+
+.aori-label-form {
+  max-height: 320px;
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.aori-label-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-weight: 600;
 }

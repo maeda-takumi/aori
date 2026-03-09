@@ -64,6 +64,14 @@
     const parser = new DOMParser();
     let currentPayload = null;
 
+    const aoriLabelModal = document.getElementById('aori-label-modal');
+    const aoriLabelForm = document.getElementById('aori-label-form');
+    const aoriLabelSaveButton = document.getElementById('aori-label-save');
+    const aoriLabelStatus = document.getElementById('aori-label-modal-status');
+    const aoriLabelCancelButton = aoriLabelModal?.querySelector('[data-aori-modal-cancel]');
+    const aoriLabelBackdrop = aoriLabelModal?.querySelector('[data-aori-modal-close]');
+    let currentLabelContactId = null;
+
     const hideModal = () => {
       if (!chatModal) {
         return;
@@ -146,11 +154,92 @@
       resultsContainer = nextResults;
     };
 
+    const hideAoriLabelModal = () => {
+      if (!aoriLabelModal || !aoriLabelForm) {
+        return;
+      }
+      aoriLabelModal.hidden = true;
+      currentLabelContactId = null;
+      aoriLabelForm.reset();
+      if (aoriLabelStatus) {
+        aoriLabelStatus.hidden = true;
+        aoriLabelStatus.textContent = '';
+      }
+      if (aoriLabelSaveButton) {
+        aoriLabelSaveButton.disabled = false;
+      }
+    };
+
+    const showAoriLabelModal = (contactId, currentLabels) => {
+      if (!aoriLabelModal || !aoriLabelForm) {
+        return;
+      }
+
+      currentLabelContactId = contactId;
+      const checkboxes = aoriLabelForm.querySelectorAll('input[name="labels[]"]');
+      checkboxes.forEach((checkbox) => {
+        if (!(checkbox instanceof HTMLInputElement)) {
+          return;
+        }
+        checkbox.checked = currentLabels.includes(checkbox.value);
+      });
+
+      if (aoriLabelStatus) {
+        aoriLabelStatus.hidden = true;
+        aoriLabelStatus.textContent = '';
+      }
+
+      if (aoriLabelSaveButton) {
+        aoriLabelSaveButton.disabled = false;
+      }
+
+      aoriLabelModal.hidden = false;
+    };
+
+    const saveAoriLabels = async (contactId, labels) => {
+      const body = new URLSearchParams({
+        action: 'save_aori_labels',
+        contact_id: String(contactId)
+      });
+      labels.forEach((label) => body.append('labels[]', label));
+
+      const response = await fetch('aori.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+        },
+        body
+      });
+
+      const result = await response.json();
+      if (!response.ok || result.status !== 'ok') {
+        throw new Error(result.message || 'ラベル保存に失敗しました。');
+      }
+    };
     document.addEventListener('click', (event) => {
       const button = event.target instanceof Element
         ? event.target.closest('.js-chat-button')
         : null;
 
+      const editButton = event.target instanceof Element
+        ? event.target.closest('[data-aori-edit-button]')
+        : null;
+
+      if (editButton instanceof HTMLButtonElement) {
+        const contactId = Number(editButton.dataset.contactId || '0');
+        let currentLabels = [];
+        try {
+          const rawLabels = editButton.dataset.currentLabels || '[]';
+          const parsed = JSON.parse(rawLabels);
+          if (Array.isArray(parsed)) {
+            currentLabels = parsed.filter((item) => typeof item === 'string');
+          }
+        } catch (error) {
+          currentLabels = [];
+        }
+        showAoriLabelModal(contactId, currentLabels);
+        return;
+      }
       if (!(button instanceof HTMLButtonElement)) {
         return;
       }
@@ -186,5 +275,35 @@
 
     cancelButton?.addEventListener('click', hideModal);
     backdrop?.addEventListener('click', hideModal);
+    aoriLabelSaveButton?.addEventListener('click', async () => {
+      if (!aoriLabelForm || currentLabelContactId === null || currentLabelContactId <= 0) {
+        return;
+      }
+
+      const labels = Array.from(aoriLabelForm.querySelectorAll('input[name="labels[]"]:checked'))
+        .filter((checkbox) => checkbox instanceof HTMLInputElement)
+        .map((checkbox) => checkbox.value);
+
+      if (aoriLabelSaveButton) {
+        aoriLabelSaveButton.disabled = true;
+      }
+
+      try {
+        await saveAoriLabels(currentLabelContactId, labels);
+        await refreshFilteredResults();
+        hideAoriLabelModal();
+      } catch (error) {
+        if (aoriLabelStatus) {
+          aoriLabelStatus.hidden = false;
+          aoriLabelStatus.textContent = error instanceof Error ? error.message : '保存に失敗しました。';
+        }
+        if (aoriLabelSaveButton) {
+          aoriLabelSaveButton.disabled = false;
+        }
+      }
+    });
+
+    aoriLabelCancelButton?.addEventListener('click', hideAoriLabelModal);
+    aoriLabelBackdrop?.addEventListener('click', hideAoriLabelModal);
   });
 })();
