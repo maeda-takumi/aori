@@ -74,21 +74,36 @@ try {
 
     $filterQuery = http_build_query($filterQueryParams);
 
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['content_id'])) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && (($_POST['action'] ?? '') === 'record_send_at')) {
+        header('Content-Type: application/json; charset=UTF-8');
+
         $contentId = filter_input(INPUT_POST, 'content_id', FILTER_VALIDATE_INT);
 
         if ($contentId === false || $contentId === null) {
-            $errors[] = '更新対象のIDが不正です。';
-        } else {
-            $updateStmt = $pdo->prepare('UPDATE contacts SET send_at = NOW() WHERE id = :id');
-            $updateStmt->execute(['id' => $contentId]);
-
-            if ($updateStmt->rowCount() > 0) {
-                $messages[] = 'send_atを現在時刻で更新しました。';
-            } else {
-                $errors[] = '対象データを更新できませんでした。';
-            }
+            http_response_code(400);
+            echo json_encode([
+                'status' => 'error',
+                'message' => '更新対象のIDが不正です。',
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
         }
+
+        $updateStmt = $pdo->prepare('UPDATE contacts SET send_at = NOW() WHERE id = :id');
+        $updateStmt->execute(['id' => $contentId]);
+
+        if ($updateStmt->rowCount() > 0) {
+            echo json_encode([
+                'status' => 'ok',
+                'message' => '前回送信日時を記録しました。',
+            ], JSON_UNESCAPED_UNICODE);
+        } else {
+            http_response_code(404);
+            echo json_encode([
+                'status' => 'error',
+                'message' => '対象データを更新できませんでした。',
+            ], JSON_UNESCAPED_UNICODE);
+        }
+        exit;
     }
 
     $conditions = [];
@@ -245,15 +260,19 @@ require __DIR__ . '/header.php';
 
           <div class="aori-actions">
             <?php if (!empty($row['chat_url'])): ?>
-              <a class="btn aori-link" href="<?= htmlspecialchars((string)$row['chat_url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">チャットを開く</a>
+              <!-- <a class="btn aori-link" href="<?= htmlspecialchars((string)$row['chat_url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">チャットを開く</a> -->
             <?php elseif (!empty($row['friend_id'])): ?>
-              <a class="btn aori-link" href="https://step.lme.jp/basic/chat-v3?friend_id=<?= urlencode((string)$row['friend_id']); ?>" target="_blank" rel="noopener noreferrer">チャットを開く</a>
+              <!-- <a class="btn aori-link" href="https://step.lme.jp/basic/chat-v3?friend_id=<?= urlencode((string)$row['friend_id']); ?>" target="_blank" rel="noopener noreferrer">チャットを開く</a> -->
             <?php endif; ?>
 
-            <form method="post" action="?<?= htmlspecialchars($filterQuery, ENT_QUOTES, 'UTF-8'); ?>" class="aori-form">
-              <input type="hidden" name="content_id" value="<?= (int)$row['id']; ?>">
-              <button class="btn" type="submit">チャット</button>
-            </form>
+            <button
+              class="btn js-chat-button"
+              type="button"
+              data-content-id="<?= (int)$row['id']; ?>"
+              data-friend-id="<?= htmlspecialchars((string)($row['friend_id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+            >
+              チャット
+            </button>
           </div>
         </li>
       <?php endforeach; ?>
@@ -261,4 +280,19 @@ require __DIR__ . '/header.php';
   <?php endif; ?>
 </section>
 
+<div id="chat-confirm-modal" class="chat-modal" hidden>
+  <div class="chat-modal__backdrop" data-chat-modal-close></div>
+  <div class="chat-modal__dialog glass" role="dialog" aria-modal="true" aria-labelledby="chat-modal-title">
+    <div class="chat-modal__warning" id="chat-warning-icon" hidden>
+      <img src="img/signal.png" alt="警告アイコン">
+    </div>
+    <h3 id="chat-modal-title">確認</h3>
+    <p id="chat-modal-message"></p>
+    <p id="chat-modal-status" class="chat-modal__status" hidden></p>
+    <div class="chat-modal__actions">
+      <button type="button" class="btn chat-modal__cancel" data-chat-modal-cancel>キャンセル</button>
+      <button type="button" class="btn" id="chat-modal-ok">OK</button>
+    </div>
+  </div>
+</div>
 <?php require __DIR__ . '/footer.php'; ?>

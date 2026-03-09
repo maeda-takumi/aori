@@ -121,6 +121,7 @@ body {
   cursor: pointer;
   transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease;
   box-shadow: 0 8px 20px rgba(91, 75, 255, 0.28);
+    min-width: 90px;
 }
 
 .btn:hover {
@@ -271,6 +272,67 @@ body {
 .aori-link {
   margin-top: 0;
   text-decoration: none;
+}
+
+.chat-modal[hidden] {
+  display: none;
+}
+
+.chat-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.chat-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(31, 35, 64, 0.45);
+}
+
+.chat-modal__dialog {
+  position: relative;
+  z-index: 1;
+  width: min(560px, 100%);
+  border-radius: 16px;
+  padding: 20px;
+  display: grid;
+  gap: 14px;
+}
+
+.chat-modal__dialog h3 {
+  margin: 0;
+}
+
+.chat-modal__dialog p {
+  margin: 0;
+  color: var(--text);
+}
+
+.chat-modal__warning img {
+  width: 42px;
+  height: 42px;
+  display: block;
+}
+
+.chat-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.chat-modal__cancel {
+  background: rgba(31, 35, 64, 0.18);
+  color: var(--text);
+  box-shadow: none;
+}
+
+.chat-modal__status {
+  color: var(--danger) !important;
+  font-weight: 700;
 }
 
 .aori-empty {
