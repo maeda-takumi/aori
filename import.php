@@ -11,7 +11,8 @@ $importedCount = 0;
 function canonicalize_key(string $value): string
 {
     $value = mb_strtolower(trim($value), 'UTF-8');
-    return preg_replace('/[\s_\-　]+/u', '', $value) ?? '';
+    $value = preg_replace('/[\s_\-　]+/u', '', $value) ?? '';
+    return preg_replace('/[^\p{L}\p{N}]+/u', '', $value) ?? '';
 }
 
 function parse_bool($value): int
@@ -87,6 +88,16 @@ function resolve_column_indexes(array $headerRow, array $aliases): array
             if (array_key_exists($canonical, $headerMap)) {
                 $resolvedIndex[$column] = $headerMap[$canonical];
                 break;
+            }
+
+            foreach ($headerMap as $headerCanonical => $headerIdx) {
+                if (
+                    str_contains($headerCanonical, $canonical)
+                    || str_contains($canonical, $headerCanonical)
+                ) {
+                    $resolvedIndex[$column] = $headerIdx;
+                    break 2;
+                }
             }
         }
     }
