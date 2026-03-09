@@ -123,10 +123,13 @@ try {
             id,
             line_display_name,
             system_display_name,
-            line_user_id,
             support_mark,
             last_message_received_at,
             send_at,
+            tag_hirabayashi,
+            tag_shimazaki,
+            tag_manpuku,
+            lmessage_personal_memo,
             chat_url,
             friend_id
         FROM contacts";
@@ -212,10 +215,16 @@ require __DIR__ . '/header.php';
           <div class="aori-meta">
             <strong><?= htmlspecialchars((string)($row['line_display_name'] ?: '名称未設定'), ENT_QUOTES, 'UTF-8'); ?></strong>
             <span>システム表示名: <?= htmlspecialchars((string)($row['system_display_name'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
-            <span>LINEユーザーID: <?= htmlspecialchars((string)($row['line_user_id'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
-            <span>support_mark: <?= htmlspecialchars((string)($row['support_mark'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
+            <span>対応マーク: <?= htmlspecialchars((string)($row['support_mark'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
             <span>最終受信日時: <?= htmlspecialchars((string)($row['last_message_received_at'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
-            <span>前回送信日時: <?= htmlspecialchars((string)($row['send_at'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
+            <span>前回送信日時: <?= htmlspecialchars((string)($row['send_at'] ?? '未送信'), ENT_QUOTES, 'UTF-8'); ?></span>
+            <span class="aori-owner-row">担当者:
+              <?php if ((int)($row['tag_hirabayashi'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-hirabayashi">平林</span><?php endif; ?>
+              <?php if ((int)($row['tag_shimazaki'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-shimazaki">島崎</span><?php endif; ?>
+              <?php if ((int)($row['tag_manpuku'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-manpuku">万福</span><?php endif; ?>
+              <?php if ((int)($row['tag_hirabayashi'] ?? 0) !== 1 && (int)($row['tag_shimazaki'] ?? 0) !== 1 && (int)($row['tag_manpuku'] ?? 0) !== 1): ?>-<?php endif; ?>
+            </span>
+            <span class="aori-memo">メモ: <?= nl2br(htmlspecialchars((string)($row['lmessage_personal_memo'] ?? '-'), ENT_QUOTES, 'UTF-8')); ?></span>
           </div>
 
           <div class="aori-actions">
