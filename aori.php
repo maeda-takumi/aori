@@ -12,11 +12,11 @@ try {
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
 
-    $columnCheckStmt = $pdo->query("SHOW COLUMNS FROM contents LIKE 'send_at'");
+    $columnCheckStmt = $pdo->query("SHOW COLUMNS FROM contacts LIKE 'send_at'");
     $hasSendAt = $columnCheckStmt->fetch() !== false;
     if (!$hasSendAt) {
-        $pdo->exec('ALTER TABLE contents ADD COLUMN send_at DATETIME NULL AFTER last_message_received_at');
-        $messages[] = 'contentsテーブルにsend_atカラムを追加しました。';
+        $pdo->exec('ALTER TABLE contacts ADD COLUMN send_at DATETIME NULL AFTER last_message_received_at');
+        $messages[] = 'contactsテーブルにsend_atカラムを追加しました。';
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['content_id'])) {
@@ -25,7 +25,7 @@ try {
         if ($contentId === false || $contentId === null) {
             $errors[] = '更新対象のIDが不正です。';
         } else {
-            $updateStmt = $pdo->prepare('UPDATE contents SET send_at = NOW() WHERE id = :id');
+            $updateStmt = $pdo->prepare('UPDATE contacts SET send_at = NOW() WHERE id = :id');
             $updateStmt->execute(['id' => $contentId]);
 
             if ($updateStmt->rowCount() > 0) {
@@ -47,7 +47,7 @@ try {
             send_at,
             chat_url,
             friend_id
-        FROM contents
+        FROM contacts
         WHERE
             last_message_received_at IS NOT NULL
             AND last_message_received_at <= (NOW() - INTERVAL 7 DAY)
@@ -99,7 +99,7 @@ require __DIR__ . '/header.php';
 
             <form method="post" class="aori-form">
               <input type="hidden" name="content_id" value="<?= (int)$row['id']; ?>">
-              <button class="btn" type="submit">チャットボタン（send_at更新）</button>
+              <button class="btn" type="submit">チャット</button>
             </form>
           </div>
         </li>
