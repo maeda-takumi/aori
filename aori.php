@@ -4,6 +4,22 @@ require __DIR__ . '/config.php';
 
 $messages = [];
 $errors = [];
+$rows = [];
+
+$ownerOptions = [
+    'all' => 'すべて',
+    'hirabayashi' => '平林',
+    'manpuku' => '万福',
+    'shimazaki' => '島崎',
+];
+
+$selectedOwner = $_GET['owner_filter'] ?? 'all';
+if (!array_key_exists($selectedOwner, $ownerOptions)) {
+    $selectedOwner = 'all';
+}
+
+$lastMessageStaleEnabled = !isset($_GET['last_message_stale']) || $_GET['last_message_stale'] === '1';
+$sendAtStaleEnabled = !isset($_GET['send_at_stale']) || $_GET['send_at_stale'] === '1';
 
 try {
     $dsn = sprintf('mysql:host=%s;dbname=%s;charset=%s', DB_HOST, DB_NAME, DB_CHARSET);
@@ -18,6 +34,43 @@ try {
         $pdo->exec('ALTER TABLE contacts ADD COLUMN send_at DATETIME NULL AFTER last_message_received_at');
         $messages[] = 'contactsテーブルにsend_atカラムを追加しました。';
     }
+
+    $supportMarkStmt = $pdo->query(
+        "SELECT DISTINCT support_mark
+        FROM contacts
+        WHERE support_mark IS NOT NULL AND support_mark <> ''
+        ORDER BY support_mark ASC"
+    );
+    $supportMarkOptions = array_map(
+        static fn(array $item): string => (string)$item['support_mark'],
+        $supportMarkStmt->fetchAll()
+    );
+
+    $selectedSupportMarks = $_GET['support_mark'] ?? null;
+    if (!is_array($selectedSupportMarks)) {
+        $selectedSupportMarks = null;
+    }
+
+    if ($selectedSupportMarks === null) {
+        $selectedSupportMarks = array_values(array_filter(
+            $supportMarkOptions,
+            static fn(string $value): bool => mb_strpos($value, 'サポート終了') === false
+        ));
+    } else {
+        $selectedSupportMarks = array_values(array_intersect($supportMarkOptions, $selectedSupportMarks));
+    }
+
+    $filterQueryParams = [
+        'owner_filter' => $selectedOwner,
+        'last_message_stale' => $lastMessageStaleEnabled ? '1' : '0',
+        'send_at_stale' => $sendAtStaleEnabled ? '1' : '0',
+    ];
+
+    foreach ($selectedSupportMarks as $supportMark) {
+        $filterQueryParams['support_mark'][] = $supportMark;
+    }
+
+    $filterQuery = http_build_query($filterQueryParams);
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['content_id'])) {
         $contentId = filter_input(INPUT_POST, 'content_id', FILTER_VALIDATE_INT);
@@ -36,8 +89,37 @@ try {
         }
     }
 
-    $listStmt = $pdo->query(
-        "SELECT
+    $conditions = [];
+    $params = [];
+
+    if ($lastMessageStaleEnabled) {
+        $conditions[] = 'last_message_received_at IS NOT NULL';
+        $conditions[] = 'last_message_received_at <= (NOW() - INTERVAL 7 DAY)';
+    }
+
+    if ($sendAtStaleEnabled) {
+        $conditions[] = '(send_at IS NULL OR send_at <= (NOW() - INTERVAL 7 DAY))';
+    }
+
+    if (!empty($selectedSupportMarks)) {
+        $supportPlaceholders = [];
+        foreach ($selectedSupportMarks as $index => $supportMark) {
+            $key = ':support_mark_' . $index;
+            $supportPlaceholders[] = $key;
+            $params[$key] = $supportMark;
+        }
+        $conditions[] = 'support_mark IN (' . implode(', ', $supportPlaceholders) . ')';
+    }
+
+    if ($selectedOwner === 'hirabayashi') {
+        $conditions[] = 'tag_hirabayashi = 1';
+    } elseif ($selectedOwner === 'manpuku') {
+        $conditions[] = 'tag_manpuku = 1';
+    } elseif ($selectedOwner === 'shimazaki') {
+        $conditions[] = 'tag_shimazaki = 1';
+    }
+
+    $sql = "SELECT
             id,
             line_display_name,
             system_display_name,
@@ -47,18 +129,23 @@ try {
             send_at,
             chat_url,
             friend_id
-        FROM contacts
-        WHERE
-            last_message_received_at IS NOT NULL
-            AND last_message_received_at <= (NOW() - INTERVAL 7 DAY)
-            AND (send_at IS NULL OR send_at <= (NOW() - INTERVAL 7 DAY))
-            AND (support_mark IS NULL OR support_mark NOT LIKE '%サポート終了%')
-        ORDER BY last_message_received_at ASC"
-    );
+        FROM contacts";
+
+    if (!empty($conditions)) {
+        $sql .= '\nWHERE ' . implode('\n  AND ', $conditions);
+    }
+
+    $sql .= '\nORDER BY last_message_received_at ASC';
+
+    $listStmt = $pdo->prepare($sql);
+    $listStmt->execute($params);
     $rows = $listStmt->fetchAll();
 } catch (Throwable $e) {
     $errors[] = 'データの取得または更新に失敗しました: ' . $e->getMessage();
     $rows = [];
+    $supportMarkOptions = [];
+    $selectedSupportMarks = [];
+    $filterQuery = '';
 }
 
 require __DIR__ . '/header.php';
@@ -66,7 +153,47 @@ require __DIR__ . '/header.php';
 
 <section class="hero-card glass aori-card">
   <h2>煽り対象一覧</h2>
-  <p>最終受信日・送信日・サポートマークの条件で抽出したユーザーを表示しています。</p>
+  <p>上部の絞り込み設定で表示対象を変更できます。</p>
+
+  <form method="get" class="aori-filter-form glass">
+    <div class="aori-filter-grid">
+      <label class="aori-filter-field">
+        担当者
+        <select name="owner_filter">
+          <?php foreach ($ownerOptions as $ownerKey => $ownerLabel): ?>
+            <option value="<?= htmlspecialchars($ownerKey, ENT_QUOTES, 'UTF-8'); ?>" <?= $selectedOwner === $ownerKey ? 'selected' : ''; ?>>
+              <?= htmlspecialchars($ownerLabel, ENT_QUOTES, 'UTF-8'); ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+
+      <label class="aori-filter-field">
+        support_mark（複数選択可）
+        <select name="support_mark[]" multiple size="5">
+          <?php foreach ($supportMarkOptions as $supportMark): ?>
+            <option value="<?= htmlspecialchars($supportMark, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($supportMark, $selectedSupportMarks, true) ? 'selected' : ''; ?>>
+              <?= htmlspecialchars($supportMark, ENT_QUOTES, 'UTF-8'); ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+
+      <label class="aori-check">
+        <input type="hidden" name="last_message_stale" value="0">
+        <input type="checkbox" name="last_message_stale" value="1" <?= $lastMessageStaleEnabled ? 'checked' : ''; ?>>
+        最終受信日が1週間以上前のみ
+      </label>
+
+      <label class="aori-check">
+        <input type="hidden" name="send_at_stale" value="0">
+        <input type="checkbox" name="send_at_stale" value="1" <?= $sendAtStaleEnabled ? 'checked' : ''; ?>>
+        前回送信日が1週間以上前 または 空欄のみ
+      </label>
+    </div>
+
+    <button class="btn" type="submit">絞り込む</button>
+  </form>
 
   <?php foreach ($messages as $message): ?>
     <p class="notice success"><?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8'); ?></p>
@@ -86,6 +213,7 @@ require __DIR__ . '/header.php';
             <strong><?= htmlspecialchars((string)($row['line_display_name'] ?: '名称未設定'), ENT_QUOTES, 'UTF-8'); ?></strong>
             <span>システム表示名: <?= htmlspecialchars((string)($row['system_display_name'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
             <span>LINEユーザーID: <?= htmlspecialchars((string)($row['line_user_id'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
+            <span>support_mark: <?= htmlspecialchars((string)($row['support_mark'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
             <span>最終受信日時: <?= htmlspecialchars((string)($row['last_message_received_at'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
             <span>前回送信日時: <?= htmlspecialchars((string)($row['send_at'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
           </div>
@@ -97,7 +225,7 @@ require __DIR__ . '/header.php';
               <a class="btn aori-link" href="https://step.lme.jp/basic/chat-v3?friend_id=<?= urlencode((string)$row['friend_id']); ?>" target="_blank" rel="noopener noreferrer">チャットを開く</a>
             <?php endif; ?>
 
-            <form method="post" class="aori-form">
+            <form method="post" action="?<?= htmlspecialchars($filterQuery, ENT_QUOTES, 'UTF-8'); ?>" class="aori-form">
               <input type="hidden" name="content_id" value="<?= (int)$row['id']; ?>">
               <button class="btn" type="submit">チャット</button>
             </form>

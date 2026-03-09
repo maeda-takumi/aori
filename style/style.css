@@ -293,3 +293,36 @@ body {
     text-align: center;
   }
 }
+.aori-filter-form {
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.aori-filter-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.aori-filter-field {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.aori-filter-field select {
+  border: 1px solid rgba(31, 35, 64, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 10px;
+  color: var(--text);
+}
+
+.aori-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--text);
+}
