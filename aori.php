@@ -48,18 +48,21 @@ try {
     );
     $supportMarkOptions = array_merge([$blankSupportMarkToken], $supportMarkOptions);
 
-    $excludedSupportMarks = $_GET['support_mark'] ?? null;
-    if (!is_array($excludedSupportMarks)) {
-        $excludedSupportMarks = null;
+    $selectedSupportMarks = $_GET['support_mark'] ?? null;
+    if (!is_array($selectedSupportMarks)) {
+        $selectedSupportMarks = null;
     }
 
-    if ($excludedSupportMarks === null) {
-        $excludedSupportMarks = array_values(array_filter(
+    if ($selectedSupportMarks === null) {
+        $selectedSupportMarks = array_values(array_filter(
             $supportMarkOptions,
-            static fn(string $value): bool => $value === 'サポート期間休止中（お客様都合）' || mb_strpos($value, 'サポート終了') !== false
+            static fn(string $value): bool => mb_strpos($value, 'サポート終了') === false
+                && mb_strpos($value, '返金案件') === false
+                && mb_strpos($value, 'クーリングオフ') === false
+                && mb_strpos($value, 'サポート期間休止中') === false
         ));
     } else {
-        $excludedSupportMarks = array_values(array_intersect($supportMarkOptions, $excludedSupportMarks));
+        $selectedSupportMarks = array_values(array_intersect($supportMarkOptions, $selectedSupportMarks));
     }
 
     $filterQueryParams = [
@@ -68,7 +71,7 @@ try {
         'send_at_stale' => $sendAtStaleEnabled ? '1' : '0',
     ];
 
-    foreach ($excludedSupportMarks as $supportMark) {
+    foreach ($selectedSupportMarks as $supportMark) {
         $filterQueryParams['support_mark'][] = $supportMark;
     }
 
@@ -118,28 +121,32 @@ try {
         $conditions[] = '(send_at IS NULL OR send_at <= (NOW() - INTERVAL 7 DAY))';
     }
 
-    if (!empty($excludedSupportMarks)) {
-        $excludeBlankSupportMark = in_array($blankSupportMarkToken, $excludedSupportMarks, true);
-        $excludedSupportMarks = array_values(array_filter(
-            $excludedSupportMarks,
-            static fn(string $value): bool => $value !== $blankSupportMarkToken
-        ));
+    $includeBlankSupportMark = in_array($blankSupportMarkToken, $selectedSupportMarks, true);
+    $selectedSupportMarks = array_values(array_filter(
+        $selectedSupportMarks,
+        static fn(string $value): bool => $value !== $blankSupportMarkToken
+    ));
+
+    $supportMarkConditions = [];
+
+    if (!empty($selectedSupportMarks)) {
         $supportPlaceholders = [];
-        foreach ($excludedSupportMarks as $index => $supportMark) {
+        foreach ($selectedSupportMarks as $index => $supportMark) {
             $key = ':support_mark_' . $index;
             $supportPlaceholders[] = $key;
             $params[$key] = $supportMark;
         }
+        $supportMarkConditions[] = 'support_mark IN (' . implode(', ', $supportPlaceholders) . ')';
+    }
 
-        if (!empty($supportPlaceholders)) {
-            $supportMarkCondition = 'support_mark NOT IN (' . implode(', ', $supportPlaceholders) . ')';
-            if (!$excludeBlankSupportMark) {
-                $supportMarkCondition = '(' . $supportMarkCondition . ' OR support_mark IS NULL OR support_mark = \'\')';
-            }
-            $conditions[] = $supportMarkCondition;
-        } elseif ($excludeBlankSupportMark) {
-            $conditions[] = "support_mark IS NOT NULL AND support_mark <> ''";
-        }
+    if ($includeBlankSupportMark) {
+        $supportMarkConditions[] = "support_mark IS NULL OR support_mark = ''";
+    }
+
+    if (!empty($supportMarkConditions)) {
+        $conditions[] = '(' . implode(' OR ', $supportMarkConditions) . ')';
+    } else {
+        $conditions[] = '1 = 0';
     }
 
     if ($selectedOwner === 'hirabayashi') {
@@ -178,7 +185,7 @@ try {
     $errors[] = 'データの取得または更新に失敗しました: ' . $e->getMessage();
     $rows = [];
     $supportMarkOptions = [];
-    $excludedSupportMarks = [];
+    $selectedSupportMarks = [];
     $filterQuery = '';
 }
 
@@ -206,7 +213,7 @@ require __DIR__ . '/header.php';
         対応マーク（複数選択可）
         <select name="support_mark[]" multiple size="5">
           <?php foreach ($supportMarkOptions as $supportMark): ?>
-            <option value="<?= htmlspecialchars($supportMark, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($supportMark, $excludedSupportMarks, true) ? 'selected' : ''; ?>>
+            <option value="<?= htmlspecialchars($supportMark, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($supportMark, $selectedSupportMarks, true) ? 'selected' : ''; ?>>
               <?= $supportMark === $blankSupportMarkToken ? '空欄' : htmlspecialchars($supportMark, ENT_QUOTES, 'UTF-8'); ?>
             </option>
           <?php endforeach; ?>
