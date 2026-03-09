@@ -46,18 +46,18 @@ try {
         $supportMarkStmt->fetchAll()
     );
 
-    $selectedSupportMarks = $_GET['support_mark'] ?? null;
-    if (!is_array($selectedSupportMarks)) {
-        $selectedSupportMarks = null;
+    $excludedSupportMarks = $_GET['support_mark'] ?? null;
+    if (!is_array($excludedSupportMarks)) {
+        $excludedSupportMarks = null;
     }
 
-    if ($selectedSupportMarks === null) {
-        $selectedSupportMarks = array_values(array_filter(
+    if ($excludedSupportMarks === null) {
+        $excludedSupportMarks = array_values(array_filter(
             $supportMarkOptions,
-            static fn(string $value): bool => mb_strpos($value, 'サポート終了') === false
+            static fn(string $value): bool => $value === 'サポート期間休止中（お客様都合）' || mb_strpos($value, 'サポート終了') !== false
         ));
     } else {
-        $selectedSupportMarks = array_values(array_intersect($supportMarkOptions, $selectedSupportMarks));
+        $excludedSupportMarks = array_values(array_intersect($supportMarkOptions, $excludedSupportMarks));
     }
 
     $filterQueryParams = [
@@ -66,7 +66,7 @@ try {
         'send_at_stale' => $sendAtStaleEnabled ? '1' : '0',
     ];
 
-    foreach ($selectedSupportMarks as $supportMark) {
+    foreach ($excludedSupportMarks as $supportMark) {
         $filterQueryParams['support_mark'][] = $supportMark;
     }
 
@@ -101,14 +101,14 @@ try {
         $conditions[] = '(send_at IS NULL OR send_at <= (NOW() - INTERVAL 7 DAY))';
     }
 
-    if (!empty($selectedSupportMarks)) {
+    if (!empty($excludedSupportMarks)) {
         $supportPlaceholders = [];
-        foreach ($selectedSupportMarks as $index => $supportMark) {
+        foreach ($excludedSupportMarks as $index => $supportMark) {
             $key = ':support_mark_' . $index;
             $supportPlaceholders[] = $key;
             $params[$key] = $supportMark;
         }
-        $conditions[] = 'support_mark IN (' . implode(', ', $supportPlaceholders) . ')';
+        $conditions[] = 'support_mark NOT IN (' . implode(', ', $supportPlaceholders) . ')';
     }
 
     if ($selectedOwner === 'hirabayashi') {
@@ -144,7 +144,7 @@ try {
     $errors[] = 'データの取得または更新に失敗しました: ' . $e->getMessage();
     $rows = [];
     $supportMarkOptions = [];
-    $selectedSupportMarks = [];
+    $excludedSupportMarks = [];
     $filterQuery = '';
 }
 
@@ -169,10 +169,10 @@ require __DIR__ . '/header.php';
       </label>
 
       <label class="aori-filter-field">
-        support_mark（複数選択可）
+        対応マーク（複数選択可）
         <select name="support_mark[]" multiple size="5">
           <?php foreach ($supportMarkOptions as $supportMark): ?>
-            <option value="<?= htmlspecialchars($supportMark, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($supportMark, $selectedSupportMarks, true) ? 'selected' : ''; ?>>
+            <option value="<?= htmlspecialchars($supportMark, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($supportMark, $excludedSupportMarks, true) ? 'selected' : ''; ?>>
               <?= htmlspecialchars($supportMark, ENT_QUOTES, 'UTF-8'); ?>
             </option>
           <?php endforeach; ?>
