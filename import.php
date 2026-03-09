@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'LMessage 管理ツール | CSVインポート';
+$pageTitle = 'Bull-Fight | CSVインポート';
 require __DIR__ . '/header.php';
 require __DIR__ . '/config.php';
 

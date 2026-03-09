@@ -8,6 +8,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><?= isset($pageTitle) ? htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') : '煽り管理'; ?></title>
 
+  <!-- ブラウザタブ用アイコン -->
+  <link rel="icon" type="image/png" href="img/aori.png">
+
+  <!-- iPhoneでホーム画面に追加したときのアイコン -->
+  <link rel="apple-touch-icon" href="img/aori.png">
+
   <!-- 毎回読み込み（キャッシュバスター） -->
   <link rel="stylesheet" href="style/style.css?v=<?= time(); ?>">
 </head>

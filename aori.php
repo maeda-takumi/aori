@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'LMessage 管理ツール | 煽り対象一覧';
+$pageTitle = 'Bull-Fight | 煽り対象一覧';
 require __DIR__ . '/config.php';
 
 $messages = [];
@@ -236,55 +236,57 @@ require __DIR__ . '/header.php';
     <button class="btn" type="submit">絞り込む</button>
   </form>
 
-  <?php foreach ($messages as $message): ?>
-    <p class="notice success"><?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8'); ?></p>
-  <?php endforeach; ?>
+  <div id="aori-results">
+    <?php foreach ($messages as $message): ?>
+      <p class="notice success"><?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8'); ?></p>
+    <?php endforeach; ?>
 
-  <?php foreach ($errors as $error): ?>
-    <p class="notice error"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></p>
-  <?php endforeach; ?>
+    <?php foreach ($errors as $error): ?>
+      <p class="notice error"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></p>
+    <?php endforeach; ?>
 
-  <?php if (empty($rows)): ?>
-    <p class="aori-empty">条件に一致するデータはありません。</p>
-  <?php else: ?>
-    <ul class="aori-list">
-      <?php foreach ($rows as $row): ?>
-        <li class="aori-item glass">
-          <div class="aori-meta">
-            <strong><?= htmlspecialchars((string)($row['line_display_name'] ?: '名称未設定'), ENT_QUOTES, 'UTF-8'); ?></strong>
-            <span>システム表示名: <?= htmlspecialchars((string)($row['system_display_name'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
-            <span>対応マーク: <?= htmlspecialchars((string)($row['support_mark'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
-            <span>最終受信日時: <?= htmlspecialchars((string)($row['last_message_received_at'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
-            <span>前回送信日時: <?= htmlspecialchars((string)((isset($row['send_at']) && $row['send_at'] !== null && $row['send_at'] !== '0000-00-00 00:00:00') ? $row['send_at'] : ''), ENT_QUOTES, 'UTF-8'); ?></span>
-            <span class="aori-owner-row">担当者:
-              <?php if ((int)($row['tag_hirabayashi'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-hirabayashi">平林</span><?php endif; ?>
-              <?php if ((int)($row['tag_shimazaki'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-shimazaki">島崎</span><?php endif; ?>
-              <?php if ((int)($row['tag_manpuku'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-manpuku">万福</span><?php endif; ?>
-              <?php if ((int)($row['tag_hirabayashi'] ?? 0) !== 1 && (int)($row['tag_shimazaki'] ?? 0) !== 1 && (int)($row['tag_manpuku'] ?? 0) !== 1): ?>-<?php endif; ?>
-            </span>
-            <span class="aori-memo">メモ: <?= nl2br(htmlspecialchars((string)($row['lmessage_personal_memo'] ?? '-'), ENT_QUOTES, 'UTF-8')); ?></span>
-          </div>
+    <?php if (empty($rows)): ?>
+      <p class="aori-empty">条件に一致するデータはありません。</p>
+    <?php else: ?>
+      <ul class="aori-list">
+        <?php foreach ($rows as $row): ?>
+          <li class="aori-item glass">
+            <div class="aori-meta">
+              <strong><?= htmlspecialchars((string)($row['line_display_name'] ?: '名称未設定'), ENT_QUOTES, 'UTF-8'); ?></strong>
+              <span>システム表示名: <?= htmlspecialchars((string)($row['system_display_name'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
+              <span>対応マーク: <?= htmlspecialchars((string)($row['support_mark'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
+              <span>最終受信日時: <?= htmlspecialchars((string)($row['last_message_received_at'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
+              <span>前回送信日時: <?= htmlspecialchars((string)((isset($row['send_at']) && $row['send_at'] !== null && $row['send_at'] !== '0000-00-00 00:00:00') ? $row['send_at'] : ''), ENT_QUOTES, 'UTF-8'); ?></span>
+              <span class="aori-owner-row">担当者:
+                <?php if ((int)($row['tag_hirabayashi'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-hirabayashi">平林</span><?php endif; ?>
+                <?php if ((int)($row['tag_shimazaki'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-shimazaki">島崎</span><?php endif; ?>
+                <?php if ((int)($row['tag_manpuku'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-manpuku">万福</span><?php endif; ?>
+                <?php if ((int)($row['tag_hirabayashi'] ?? 0) !== 1 && (int)($row['tag_shimazaki'] ?? 0) !== 1 && (int)($row['tag_manpuku'] ?? 0) !== 1): ?>-<?php endif; ?>
+              </span>
+              <span class="aori-memo">メモ: <?= nl2br(htmlspecialchars((string)($row['lmessage_personal_memo'] ?? '-'), ENT_QUOTES, 'UTF-8')); ?></span>
+            </div>
 
-          <div class="aori-actions">
-            <?php if (!empty($row['chat_url'])): ?>
-              <!-- <a class="btn aori-link" href="<?= htmlspecialchars((string)$row['chat_url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">チャットを開く</a> -->
-            <?php elseif (!empty($row['friend_id'])): ?>
-              <!-- <a class="btn aori-link" href="https://step.lme.jp/basic/chat-v3?friend_id=<?= urlencode((string)$row['friend_id']); ?>" target="_blank" rel="noopener noreferrer">チャットを開く</a> -->
-            <?php endif; ?>
+            <div class="aori-actions">
+              <?php if (!empty($row['chat_url'])): ?>
+                <!-- <a class="btn aori-link" href="<?= htmlspecialchars((string)$row['chat_url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">チャットを開く</a> -->
+              <?php elseif (!empty($row['friend_id'])): ?>
+                <!-- <a class="btn aori-link" href="https://step.lme.jp/basic/chat-v3?friend_id=<?= urlencode((string)$row['friend_id']); ?>" target="_blank" rel="noopener noreferrer">チャットを開く</a> -->
+              <?php endif; ?>
 
-            <button
-              class="btn js-chat-button"
-              type="button"
-              data-content-id="<?= (int)$row['id']; ?>"
-              data-friend-id="<?= htmlspecialchars((string)($row['friend_id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
-            >
-              チャット
-            </button>
-          </div>
-        </li>
-      <?php endforeach; ?>
-    </ul>
-  <?php endif; ?>
+              <button
+                class="btn js-chat-button"
+                type="button"
+                data-content-id="<?= (int)$row['id']; ?>"
+                data-friend-id="<?= htmlspecialchars((string)($row['friend_id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+              >
+                チャット
+              </button>
+            </div>
+          </li>
+        <?php endforeach; ?>
+      </ul>
+    <?php endif; ?>
+  </div>
 </section>
 
 <div id="chat-confirm-modal" class="chat-modal" hidden>

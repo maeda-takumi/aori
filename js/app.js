@@ -53,13 +53,15 @@
     }
 
     const chatModal = document.getElementById('chat-confirm-modal');
-    const chatButtons = document.querySelectorAll('.js-chat-button');
     const messageElement = document.getElementById('chat-modal-message');
     const statusElement = document.getElementById('chat-modal-status');
     const warningIcon = document.getElementById('chat-warning-icon');
     const okButton = document.getElementById('chat-modal-ok');
     const cancelButton = chatModal?.querySelector('[data-chat-modal-cancel]');
     const backdrop = chatModal?.querySelector('[data-chat-modal-close]');
+    const filterForm = document.querySelector('.aori-filter-form');
+    let resultsContainer = document.getElementById('aori-results');
+    const parser = new DOMParser();
     let currentPayload = null;
 
     const hideModal = () => {
@@ -112,13 +114,51 @@
       }
     };
 
-    chatButtons.forEach((button) => {
-      button.addEventListener('click', () => {
-        const contentId = Number(button.dataset.contentId || '0');
-        const friendId = (button.dataset.friendId || '').trim();
-        const hasFriendId = friendId.length > 0;
-        showModal({ contentId, friendId, hasFriendId });
+    const refreshFilteredResults = async () => {
+      if (!filterForm || !resultsContainer) {
+        window.location.reload();
+        return;
+      }
+
+      const formData = new FormData(filterForm);
+      const queryString = new URLSearchParams(formData).toString();
+      const requestUrl = queryString ? `aori.php?${queryString}` : 'aori.php';
+
+      const response = await fetch(requestUrl, {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
       });
+
+      if (!response.ok) {
+        throw new Error('最新の一覧取得に失敗しました。');
+      }
+
+      const html = await response.text();
+      const doc = parser.parseFromString(html, 'text/html');
+      const nextResults = doc.getElementById('aori-results');
+
+      if (!nextResults) {
+        throw new Error('一覧エリアの更新に失敗しました。');
+      }
+
+      resultsContainer.replaceWith(nextResults);
+      resultsContainer = nextResults;
+    };
+
+    document.addEventListener('click', (event) => {
+      const button = event.target instanceof Element
+        ? event.target.closest('.js-chat-button')
+        : null;
+
+      if (!(button instanceof HTMLButtonElement)) {
+        return;
+      }
+
+      const contentId = Number(button.dataset.contentId || '0');
+      const friendId = (button.dataset.friendId || '').trim();
+      const hasFriendId = friendId.length > 0;
+      showModal({ contentId, friendId, hasFriendId });
     });
 
     okButton?.addEventListener('click', async () => {
@@ -135,7 +175,8 @@
           window.open(chatUrl, '_blank', 'noopener,noreferrer');
         }
 
-        window.location.reload();
+        await refreshFilteredResults();
+        hideModal();
       } catch (error) {
         statusElement.hidden = false;
         statusElement.textContent = error instanceof Error ? error.message : '処理に失敗しました。';

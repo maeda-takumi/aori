@@ -1,5 +1,5 @@
 <?php
-$pageTitle = 'LMessage 管理ツール | ダッシュボード';
+$pageTitle = 'Bull-Fight | ダッシュボード';
 require __DIR__ . '/header.php';
 ?>
 
