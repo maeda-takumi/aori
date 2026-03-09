@@ -84,8 +84,8 @@
       currentPayload = payload;
       warningIcon.hidden = payload.hasFriendId;
       messageElement.textContent = payload.hasFriendId
-        ? 'OKボタンを押すと、前回送信日時が記録され、チャット画面が開きます。'
-        : 'OKボタンを押すと、friend_idが無いため、チャット画面が開きませんが前回送信日時が記録されます。';
+        ? 'OKボタンを押すと、前回煽り送信日時が記録され、チャット画面が開きます。'
+        : 'OKボタンを押すと、friend_idが無いため、チャット画面が開きませんが前回煽り送信日時が記録されます。';
 
       if (statusElement) {
         statusElement.hidden = true;

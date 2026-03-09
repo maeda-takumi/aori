@@ -97,7 +97,7 @@ try {
         if ($updateStmt->rowCount() > 0) {
             echo json_encode([
                 'status' => 'ok',
-                'message' => '前回送信日時を記録しました。',
+                'message' => '前回煽り送信日時を記録しました。',
             ], JSON_UNESCAPED_UNICODE);
         } else {
             http_response_code(404);
@@ -229,7 +229,7 @@ require __DIR__ . '/header.php';
       <label class="aori-check">
         <input type="hidden" name="send_at_stale" value="0">
         <input type="checkbox" name="send_at_stale" value="1" <?= $sendAtStaleEnabled ? 'checked' : ''; ?>>
-        前回送信日が1週間以上前 または 空欄のみ
+        前回煽り送信日が1週間以上前 または 空欄のみ
       </label>
     </div>
 
@@ -256,7 +256,7 @@ require __DIR__ . '/header.php';
               <span>システム表示名: <?= htmlspecialchars((string)($row['system_display_name'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
               <span>対応マーク: <?= htmlspecialchars((string)($row['support_mark'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
               <span>最終受信日時: <?= htmlspecialchars((string)($row['last_message_received_at'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
-              <span>前回送信日時: <?= htmlspecialchars((string)((isset($row['send_at']) && $row['send_at'] !== null && $row['send_at'] !== '0000-00-00 00:00:00') ? $row['send_at'] : ''), ENT_QUOTES, 'UTF-8'); ?></span>
+              <span>前回煽り送信日時: <?= htmlspecialchars((string)((isset($row['send_at']) && $row['send_at'] !== null && $row['send_at'] !== '0000-00-00 00:00:00') ? $row['send_at'] : ''), ENT_QUOTES, 'UTF-8'); ?></span>
               <span class="aori-owner-row">担当者:
                 <?php if ((int)($row['tag_hirabayashi'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-hirabayashi">平林</span><?php endif; ?>
                 <?php if ((int)($row['tag_shimazaki'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-shimazaki">島崎</span><?php endif; ?>
