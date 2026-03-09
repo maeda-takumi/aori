@@ -117,6 +117,26 @@ function merge_header_rows(array $upper, array $lower): array
 
     return $merged;
 }
+function normalize_csv_row_encoding(array $row): array
+{
+    $normalized = [];
+    foreach ($row as $value) {
+        if (!is_string($value)) {
+            $normalized[] = $value;
+            continue;
+        }
+
+        $encoding = mb_detect_encoding($value, ['UTF-8', 'SJIS-win', 'CP932', 'EUC-JP', 'ISO-8859-1', 'ASCII'], true);
+        if ($encoding !== false && $encoding !== 'UTF-8') {
+            $value = mb_convert_encoding($value, 'UTF-8', $encoding);
+        }
+
+        $normalized[] = preg_replace('/^\xEF\xBB\xBF/', '', $value) ?? $value;
+    }
+
+    return $normalized;
+}
+
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
@@ -145,10 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($row === false) {
                         break;
                     }
-                    if ($i === 0 && isset($row[0])) {
-                        $row[0] = preg_replace('/^\xEF\xBB\xBF/', '', $row[0]);
-                    }
-                    $headerRows[] = $row;
+                    $headerRows[] = normalize_csv_row_encoding($row);
                 }
 
                 if (empty($headerRows)) {
@@ -249,6 +266,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $stmt = $pdo->prepare($sql);
 
                             foreach ($bufferedDataRows as $row) {
+                                $row = normalize_csv_row_encoding($row);
                                 $lineUserId = trim((string)($row[$resolvedIndex['line_user_id']] ?? ''));
 
                                 if ($lineUserId === '') {
@@ -287,6 +305,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 }
                             }
                             while (($row = fgetcsv($handle)) !== false) {
+                                $row = normalize_csv_row_encoding($row);
                                 $lineUserId = $resolvedIndex['line_user_id'] !== null ? trim((string)($row[$resolvedIndex['line_user_id']] ?? '')) : '';
 
                                 if ($lineUserId === '') {

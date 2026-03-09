@@ -14,7 +14,11 @@
 * {
   box-sizing: border-box;
 }
-
+.nav-links{
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
 body {
   margin: 0;
   color: var(--text);
@@ -58,7 +62,7 @@ body {
 }
 
 .import-icon-btn {
-  margin-right: 14px;
+  /* margin-right: 14px; */
   width: 46px;
   height: 46px;
   border-radius: 14px;
