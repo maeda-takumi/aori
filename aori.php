@@ -132,10 +132,10 @@ try {
         FROM contacts";
 
     if (!empty($conditions)) {
-        $sql .= '\nWHERE ' . implode('\n  AND ', $conditions);
+        $sql .= "\nWHERE " . implode("\n  AND ", $conditions);
     }
 
-    $sql .= '\nORDER BY last_message_received_at ASC';
+    $sql .= "\nORDER BY last_message_received_at ASC";
 
     $listStmt = $pdo->prepare($sql);
     $listStmt->execute($params);
