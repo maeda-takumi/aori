@@ -79,7 +79,10 @@ body {
   width: 24px;
   height: 24px;
 }
-
+.import-icon-btn2 img {
+  width: 30px;
+  height: 30px;
+}
 .import-icon-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 22px rgba(91, 75, 255, 0.2);
