@@ -5,6 +5,7 @@ require __DIR__ . '/config.php';
 $messages = [];
 $errors = [];
 $rows = [];
+$blankSupportMarkToken = '__BLANK__';
 
 $ownerOptions = [
     'all' => 'すべて',
@@ -45,6 +46,7 @@ try {
         static fn(array $item): string => (string)$item['support_mark'],
         $supportMarkStmt->fetchAll()
     );
+    $supportMarkOptions = array_merge([$blankSupportMarkToken], $supportMarkOptions);
 
     $excludedSupportMarks = $_GET['support_mark'] ?? null;
     if (!is_array($excludedSupportMarks)) {
@@ -102,13 +104,27 @@ try {
     }
 
     if (!empty($excludedSupportMarks)) {
+        $excludeBlankSupportMark = in_array($blankSupportMarkToken, $excludedSupportMarks, true);
+        $excludedSupportMarks = array_values(array_filter(
+            $excludedSupportMarks,
+            static fn(string $value): bool => $value !== $blankSupportMarkToken
+        ));
         $supportPlaceholders = [];
         foreach ($excludedSupportMarks as $index => $supportMark) {
             $key = ':support_mark_' . $index;
             $supportPlaceholders[] = $key;
             $params[$key] = $supportMark;
         }
-        $conditions[] = 'support_mark NOT IN (' . implode(', ', $supportPlaceholders) . ')';
+
+        if (!empty($supportPlaceholders)) {
+            $supportMarkCondition = 'support_mark NOT IN (' . implode(', ', $supportPlaceholders) . ')';
+            if (!$excludeBlankSupportMark) {
+                $supportMarkCondition = '(' . $supportMarkCondition . ' OR support_mark IS NULL OR support_mark = \'\')';
+            }
+            $conditions[] = $supportMarkCondition;
+        } elseif ($excludeBlankSupportMark) {
+            $conditions[] = "support_mark IS NOT NULL AND support_mark <> ''";
+        }
     }
 
     if ($selectedOwner === 'hirabayashi') {
@@ -138,7 +154,7 @@ try {
         $sql .= "\nWHERE " . implode("\n  AND ", $conditions);
     }
 
-    $sql .= "\nORDER BY last_message_received_at ASC";
+    $sql .= "\nORDER BY last_message_received_at DESC";
 
     $listStmt = $pdo->prepare($sql);
     $listStmt->execute($params);
@@ -176,7 +192,7 @@ require __DIR__ . '/header.php';
         <select name="support_mark[]" multiple size="5">
           <?php foreach ($supportMarkOptions as $supportMark): ?>
             <option value="<?= htmlspecialchars($supportMark, ENT_QUOTES, 'UTF-8'); ?>" <?= in_array($supportMark, $excludedSupportMarks, true) ? 'selected' : ''; ?>>
-              <?= htmlspecialchars($supportMark, ENT_QUOTES, 'UTF-8'); ?>
+              <?= $supportMark === $blankSupportMarkToken ? '空欄' : htmlspecialchars($supportMark, ENT_QUOTES, 'UTF-8'); ?>
             </option>
           <?php endforeach; ?>
         </select>
@@ -217,7 +233,7 @@ require __DIR__ . '/header.php';
             <span>システム表示名: <?= htmlspecialchars((string)($row['system_display_name'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
             <span>対応マーク: <?= htmlspecialchars((string)($row['support_mark'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
             <span>最終受信日時: <?= htmlspecialchars((string)($row['last_message_received_at'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
-            <span>前回送信日時: <?= htmlspecialchars((string)($row['send_at'] ?? '未送信'), ENT_QUOTES, 'UTF-8'); ?></span>
+            <span>前回送信日時: <?= htmlspecialchars((string)((isset($row['send_at']) && $row['send_at'] !== null && $row['send_at'] !== '0000-00-00 00:00:00') ? $row['send_at'] : ''), ENT_QUOTES, 'UTF-8'); ?></span>
             <span class="aori-owner-row">担当者:
               <?php if ((int)($row['tag_hirabayashi'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-hirabayashi">平林</span><?php endif; ?>
               <?php if ((int)($row['tag_shimazaki'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-shimazaki">島崎</span><?php endif; ?>

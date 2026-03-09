@@ -6,7 +6,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><?= isset($pageTitle) ? htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') : 'LMessage 管理ツール'; ?></title>
+  <title><?= isset($pageTitle) ? htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') : '煽り管理'; ?></title>
 
   <!-- 毎回読み込み（キャッシュバスター） -->
   <link rel="stylesheet" href="style/style.css?v=<?= time(); ?>">
@@ -14,7 +14,7 @@
 <body>
   <header class="site-header glass">
     <div class="container header-inner">
-      <h1 class="site-title">LMessage 管理ツール</h1>
+      <h1 class="site-title">煽り管理</h1>
       <div class="nav-links">
         <a href="index.php" class="import-icon-btn" aria-label="ホーム画面へ移動">
             <img src="img/home.png" alt="ホーム">
