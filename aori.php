@@ -122,16 +122,16 @@ try {
     }
 
     $includeBlankSupportMark = in_array($blankSupportMarkToken, $selectedSupportMarks, true);
-    $selectedSupportMarks = array_values(array_filter(
+    $selectedSupportMarksForCondition = array_values(array_filter(
         $selectedSupportMarks,
         static fn(string $value): bool => $value !== $blankSupportMarkToken
     ));
 
     $supportMarkConditions = [];
 
-    if (!empty($selectedSupportMarks)) {
+    if (!empty($selectedSupportMarksForCondition)) {
         $supportPlaceholders = [];
-        foreach ($selectedSupportMarks as $index => $supportMark) {
+        foreach ($selectedSupportMarksForCondition as $index => $supportMark) {
             $key = ':support_mark_' . $index;
             $supportPlaceholders[] = $key;
             $params[$key] = $supportMark;
