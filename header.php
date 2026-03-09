@@ -13,8 +13,11 @@
 </head>
 <body>
   <header class="site-header glass">
-    <div class="container">
+    <div class="container header-inner">
       <h1 class="site-title">LMessage 管理ツール</h1>
+      <a href="import.php" class="import-icon-btn" aria-label="インポート画面へ移動">
+        <img src="img/import.png" alt="インポート">
+      </a>
     </div>
   </header>
 
