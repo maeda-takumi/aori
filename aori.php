@@ -68,15 +68,39 @@ try {
         );
         $messages[] = 'contact_managementテーブルを作成しました。';
     } else {
+        $contactIdColumnStmt = $pdo->query("SHOW COLUMNS FROM contact_management LIKE 'contact_id'");
+        $hasContactId = $contactIdColumnStmt->fetch() !== false;
+        $lineUserIdColumnStmt = $pdo->query("SHOW COLUMNS FROM contact_management LIKE 'line_user_id'");
+        $hasLineUserId = $lineUserIdColumnStmt->fetch() !== false;
+
+        if (!$hasContactId && $hasLineUserId) {
+            $pdo->exec('ALTER TABLE contact_management ADD COLUMN contact_id INT UNSIGNED NULL AFTER id');
+            $pdo->exec(
+                'UPDATE contact_management cm
+                 INNER JOIN contacts c ON c.line_user_id = cm.line_user_id
+                 SET cm.contact_id = c.id
+                 WHERE cm.contact_id IS NULL'
+            );
+            $messages[] = 'contact_managementテーブルにcontact_idカラムを追加しました。';
+            $hasContactId = true;
+        }
         $managementColumnStmt = $pdo->query("SHOW COLUMNS FROM contact_management LIKE 'aori_labels'");
         if ($managementColumnStmt->fetch() === false) {
-            $pdo->exec('ALTER TABLE contact_management ADD COLUMN aori_labels TEXT NULL AFTER contact_id');
+            if ($hasContactId) {
+                $pdo->exec('ALTER TABLE contact_management ADD COLUMN aori_labels TEXT NULL AFTER contact_id');
+            } elseif ($hasLineUserId) {
+                $pdo->exec('ALTER TABLE contact_management ADD COLUMN aori_labels TEXT NULL AFTER line_user_id');
+            } else {
+                $pdo->exec('ALTER TABLE contact_management ADD COLUMN aori_labels TEXT NULL');
+            }
             $messages[] = 'contact_managementテーブルにaori_labelsカラムを追加しました。';
         }
 
-        $contactIdUniqueStmt = $pdo->query("SHOW INDEX FROM contact_management WHERE Key_name = 'uniq_contact_id'");
-        if ($contactIdUniqueStmt->fetch() === false) {
-            $pdo->exec('ALTER TABLE contact_management ADD UNIQUE KEY uniq_contact_id (contact_id)');
+        if ($hasContactId) {
+            $contactIdUniqueStmt = $pdo->query("SHOW INDEX FROM contact_management WHERE Key_name = 'uniq_contact_id'");
+            if ($contactIdUniqueStmt->fetch() === false) {
+                $pdo->exec('ALTER TABLE contact_management ADD UNIQUE KEY uniq_contact_id (contact_id)');
+            }
         }
     }
     $supportMarkStmt = $pdo->query(
@@ -359,7 +383,7 @@ require __DIR__ . '/header.php';
                   data-current-labels="<?= htmlspecialchars(json_encode($savedLabels, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>"
                   aria-label="状態ラベルを編集"
                 >
-                  <img src="img/edit.png" alt="編集">
+                  <img src="img/edit2.png" alt="編集">
                 </button>
               </strong>
               <?php if (!empty($savedLabels)): ?>
