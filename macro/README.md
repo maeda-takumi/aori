@@ -15,11 +15,11 @@
 python3 macro/friend_id_scraper.py
 ```
 
-実行中に以下を入力します。
+実行中に以下を行います。
 
-1. 手動ログイン後 Enter
-2. API URL（空なら送信スキップ）
-3. APIトークン（任意）
+1. ログイン画面にメールアドレス/パスワードが自動入力される
+2. 必要ならログイン操作後 Enter
+3. 取得データを固定API URLへ自動送信
 
 送信JSON形式:
 
@@ -43,10 +43,10 @@ python3 macro/friend_id_scraper.py
 - 見つからない場合は `system_display_name` 一致で再試行
 - `friend_id` は文字列として保存
 
-### APIエンドポイント例
+### APIエンドポイント（本スクリプトの固定送信先）
 
 ```text
-https://<your-domain>/macro/friend_id_sync_api.php
+https://totalappworks.com/support_aori/macro/friend_id_sync_api.php
 ```
 
 ### リクエスト（POST / application/json）
@@ -59,7 +59,7 @@ https://<your-domain>/macro/friend_id_sync_api.php
 }
 ```
 
-### トークン認証（任意）
+### トークン認証
 
-環境変数 `AORI_FRIEND_SYNC_TOKEN` を設定すると、
-`X-API-Token` ヘッダー必須になります。
+本スクリプトはAPIトークンを送信しません。
+
