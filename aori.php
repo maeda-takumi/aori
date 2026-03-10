@@ -253,23 +253,8 @@ try {
             $normalizedCurriculumStatus = $curriculumStatus;
         }
 
-        $existingManagementStmt = $pdo->prepare(
-            'SELECT aori_labels, curriculum_status
-             FROM contact_management
-             WHERE line_user_id = :line_user_id
-             LIMIT 1'
-        );
-        $existingManagementStmt->execute(['line_user_id' => $lineUserId]);
-        $existing = $existingManagementStmt->fetch();
-
-        $storedAoriLabelText = $existing['aori_labels'] ?? '';
-        $storedCurriculumStatus = $existing['curriculum_status'] ?? '';
-
-        if ($labelMode === 'aori') {
-            $storedAoriLabelText = implode('|', $normalizedLabels);
-        } elseif ($labelMode === 'curriculum') {
-            $storedCurriculumStatus = $normalizedCurriculumStatus;
-        }
+        $storedAoriLabelText = implode('|', $normalizedLabels);
+        $storedCurriculumStatus = $normalizedCurriculumStatus;
 
         $upsertStmt = $pdo->prepare(
             'INSERT INTO contact_management (line_user_id, aori_labels, curriculum_status, created_at, updated_at)

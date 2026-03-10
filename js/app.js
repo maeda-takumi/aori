@@ -254,11 +254,8 @@
         line_user_id: String(lineUserId),
         label_mode: labelMode
       });
-      if (labelMode === 'aori') {
-        labels.forEach((label) => body.append('labels[]', label));
-      } else {
-        body.set('curriculum_status', curriculumStatus);
-      }
+      labels.forEach((label) => body.append('labels[]', label));
+      body.set('curriculum_status', curriculumStatus);
 
       const response = await fetch('aori.php', {
         method: 'POST',
