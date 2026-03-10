@@ -14,6 +14,7 @@ from selenium.webdriver.common.by import By
 
 BASE_URL = "https://step.lme.jp"
 FRIEND_LIST_URL = f"{BASE_URL}/basic/friendlist"
+FRIEND_HREF_RE = re.compile(r"/basic/friendlist/my_page/([^/?#]+)")
 DEFAULT_EMAIL = "miomama0605@gmail.com"
 DEFAULT_PASSWORD = "20250606@Mio"
 FRIEND_SYNC_API_URL = "https://totalappworks.com/support_aori/macro/friend_id_sync_api.php"
