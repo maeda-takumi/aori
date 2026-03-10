@@ -62,7 +62,8 @@
     const filterForm = document.querySelector('.aori-filter-form');
     let resultsContainer = document.getElementById('aori-results');
     const parser = new DOMParser();
-    let currentPayload = null;
+    let currentModalAction = null;
+    let currentContentId = null;
 
     const aoriLabelModal = document.getElementById('aori-label-modal');
     const aoriLabelForm = document.getElementById('aori-label-form');
@@ -77,29 +78,36 @@
         return;
       }
       chatModal.hidden = true;
-      currentPayload = null;
+      currentModalAction = null;
+      currentContentId = null;
+      if (cancelButton) {
+        cancelButton.hidden = false;
+      }
+
       if (statusElement) {
         statusElement.hidden = true;
         statusElement.textContent = '';
       }
     };
 
-    const showModal = (payload) => {
+    const showModal = ({ message, warning = false, showCancel = true, action = null, contentId = null }) => {
       if (!chatModal || !messageElement || !okButton || !warningIcon) {
         return;
       }
 
-      currentPayload = payload;
-      warningIcon.hidden = payload.hasFriendId;
-      messageElement.textContent = payload.hasFriendId
-        ? 'OKボタンを押すと、前回煽り送信日時が記録され、チャット画面が開きます。'
-        : 'OKボタンを押すと、friend_idが無いため、チャット画面が開きませんが前回煽り送信日時が記録されます。';
+      currentModalAction = action;
+      currentContentId = contentId;
+      warningIcon.hidden = !warning;
+      messageElement.textContent = message;
 
       if (statusElement) {
         statusElement.hidden = true;
         statusElement.textContent = '';
       }
 
+      if (cancelButton) {
+        cancelButton.hidden = !showCancel;
+      }
       okButton.disabled = false;
       chatModal.hidden = false;
     };
@@ -217,12 +225,12 @@
       }
     };
     document.addEventListener('click', (event) => {
-      const button = event.target instanceof Element
+      const chatButton = event.target instanceof Element
         ? event.target.closest('.js-chat-button')
         : null;
 
-      const editButton = event.target instanceof Element
-        ? event.target.closest('[data-aori-edit-button]')
+      const completeButton = event.target instanceof Element
+        ? event.target.closest('.js-complete-button')
         : null;
 
       if (editButton instanceof HTMLButtonElement) {
@@ -240,29 +248,65 @@
         showAoriLabelModal(lineUserId, currentLabels);
         return;
       }
-      if (!(button instanceof HTMLButtonElement)) {
+      if (chatButton instanceof HTMLButtonElement) {
+        const friendId = (chatButton.dataset.friendId || '').trim();
+
+        if (friendId.length === 0) {
+          showModal({
+            message: 'friend_idが無いため開けません。',
+            warning: true,
+            showCancel: false,
+            action: 'alert'
+          });
+          return;
+        }
+
+        const chatUrl = `https://step.lme.jp/basic/chat-v3?friend_id=${encodeURIComponent(friendId)}`;
+        window.open(chatUrl, '_blank', 'noopener,noreferrer');
         return;
       }
 
-      const contentId = Number(button.dataset.contentId || '0');
-      const friendId = (button.dataset.friendId || '').trim();
-      const hasFriendId = friendId.length > 0;
-      showModal({ contentId, friendId, hasFriendId });
+      if (!(completeButton instanceof HTMLButtonElement)) {
+        return;
+      }
+
+      const contentId = Number(completeButton.dataset.contentId || '0');
+      if (!Number.isFinite(contentId) || contentId <= 0) {
+        showModal({
+          message: '更新対象のIDが不正です。',
+          warning: true,
+          showCancel: false,
+          action: 'alert'
+        });
+        return;
+      }
+
+      showModal({
+        message: '煽り送信完了にします。',
+        warning: false,
+        showCancel: true,
+        action: 'record_send_at',
+        contentId
+      });
     });
 
     okButton?.addEventListener('click', async () => {
-      if (!currentPayload || !statusElement || !okButton) {
+      if (!okButton) {
+        return;
+      }
+
+      if (currentModalAction !== 'record_send_at') {
+        hideModal();
+        return;
+      }
+
+      if (!statusElement || currentContentId === null) {
         return;
       }
 
       okButton.disabled = true;
       try {
-        await recordSendAt(currentPayload.contentId);
-
-        if (currentPayload.hasFriendId) {
-          const chatUrl = `https://step.lme.jp/basic/chat-v3?friend_id=${encodeURIComponent(currentPayload.friendId)}`;
-          window.open(chatUrl, '_blank', 'noopener,noreferrer');
-        }
+        await recordSendAt(currentContentId);
 
         await refreshFilteredResults();
         hideModal();

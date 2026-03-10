@@ -434,10 +434,17 @@ require __DIR__ . '/header.php';
               <button
                 class="btn js-chat-button"
                 type="button"
-                data-content-id="<?= (int)$row['id']; ?>"
                 data-friend-id="<?= htmlspecialchars((string)($row['friend_id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
               >
                 チャット
+              </button>
+
+              <button
+                class="btn js-complete-button"
+                type="button"
+                data-content-id="<?= (int)$row['id']; ?>"
+              >
+                完了
               </button>
             </div>
           </li>
