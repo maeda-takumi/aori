@@ -112,11 +112,18 @@ def prefill_login_form(driver: webdriver.Chrome, email: str, password: str) -> N
             (By.NAME, "email"),
             (By.ID, "email"),
             (By.CSS_SELECTOR, "input[type='email']"),
+            # Lステップ側のログイン画面では email フィールドが type="text" のみの場合がある
+            (By.CSS_SELECTOR, "input[onchange*='email']"),
+            (By.CSS_SELECTOR, "input[onkeydown*='email']"),
+            (By.CSS_SELECTOR, "form.login-form input[type='text']"),
         ],
         "password": [
             (By.NAME, "password"),
             (By.ID, "password"),
             (By.CSS_SELECTOR, "input[type='password']"),
+            (By.CSS_SELECTOR, "input[onchange*='password']"),
+            (By.CSS_SELECTOR, "input[onkeydown*='password']"),
+            (By.CSS_SELECTOR, "form.login-form input[type='password']"),
         ],
     }
 
