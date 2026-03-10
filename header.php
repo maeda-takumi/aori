@@ -1,5 +1,16 @@
 <?php
 // header.php
+$latestImportCompletedAt = null;
+$importStatusPath = __DIR__ . '/storage/import_status.json';
+if (is_file($importStatusPath) && is_readable($importStatusPath)) {
+    $rawImportStatus = file_get_contents($importStatusPath);
+    if ($rawImportStatus !== false) {
+        $decodedImportStatus = json_decode($rawImportStatus, true);
+        if (is_array($decodedImportStatus) && isset($decodedImportStatus['completed_at_display'])) {
+            $latestImportCompletedAt = (string)$decodedImportStatus['completed_at_display'];
+        }
+    }
+}
 ?>
 <!doctype html>
 <html lang="ja">
@@ -20,7 +31,12 @@
 <body>
   <header class="site-header glass">
     <div class="container header-inner">
-      <h1 class="site-title">煽り管理</h1>
+      <div class="site-brand">
+        <h1 class="site-title">煽り管理</h1>
+        <?php if ($latestImportCompletedAt !== null): ?>
+          <p class="import-completed-at">最終インポート完了: <?= htmlspecialchars($latestImportCompletedAt, ENT_QUOTES, 'UTF-8'); ?></p>
+        <?php endif; ?>
+      </div>
       <div class="nav-links">
         <a href="index.php" class="import-icon-btn" aria-label="ホーム画面へ移動">
             <img src="img/home.png" alt="ホーム">

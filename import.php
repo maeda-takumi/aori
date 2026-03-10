@@ -1,6 +1,5 @@
 <?php
 $pageTitle = 'Bull-Fight | CSVインポート';
-require __DIR__ . '/header.php';
 require __DIR__ . '/config.php';
 
 $messages = [];
@@ -8,6 +7,32 @@ $errors = [];
 $previewRows = [];
 $importedCount = 0;
 
+function import_status_file_path(): string
+{
+    return __DIR__ . '/storage/import_status.json';
+}
+
+function save_import_status(string $sourceFileName, int $importedCount): void
+{
+    $statusPath = import_status_file_path();
+    $statusDir = dirname($statusPath);
+    if (!is_dir($statusDir) && !mkdir($statusDir, 0775, true) && !is_dir($statusDir)) {
+        throw new RuntimeException('完了日時保存用ディレクトリの作成に失敗しました。');
+    }
+
+    $completedAt = new DateTimeImmutable('now');
+    $status = [
+        'completed_at_iso' => $completedAt->format(DateTimeInterface::ATOM),
+        'completed_at_display' => $completedAt->format('Y-m-d H:i:s'),
+        'imported_count' => $importedCount,
+        'source_file' => $sourceFileName,
+    ];
+
+    $json = json_encode($status, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    if ($json === false || file_put_contents($statusPath, $json . PHP_EOL, LOCK_EX) === false) {
+        throw new RuntimeException('完了日時の保存に失敗しました。');
+    }
+}
 function canonicalize_key(string $value): string
 {
     $value = mb_strtolower(trim($value), 'UTF-8');
@@ -345,6 +370,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             }
 
                             $messages[] = sprintf('%s の取込が完了しました。%d 件を保存しました。', htmlspecialchars($originalName, ENT_QUOTES, 'UTF-8'), $importedCount);
+                            try {
+                                save_import_status($originalName, $importedCount);
+                            } catch (Throwable $e) {
+                                $errors[] = $e->getMessage();
+                            }
                         } catch (Throwable $e) {
                             $errors[] = 'DB保存中にエラーが発生しました: ' . $e->getMessage();
                         }
@@ -356,6 +386,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+require __DIR__ . '/header.php';
 ?>
 
 <section class="hero-card glass import-card">

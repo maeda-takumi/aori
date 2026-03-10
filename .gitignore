@@ -8,3 +8,6 @@ dist/
 *.aux
 *.toc
 *.out
+
+# Import status cache
+storage/import_status.json
