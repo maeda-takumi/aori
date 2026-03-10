@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import re
 import time
+import tkinter as tk
 from dataclasses import dataclass, asdict
+from tkinter import messagebox
 from typing import List, Optional
 
 import requests
@@ -135,6 +137,10 @@ def prefill_login_form(driver: webdriver.Chrome, email: str, password: str) -> N
         break
 
 def main() -> None:
+    run_scraper()
+
+
+def run_scraper() -> None:
     options = Options()
     options.add_experimental_option("detach", True)
     driver = webdriver.Chrome(options=options)
@@ -143,10 +149,11 @@ def main() -> None:
         driver.get(BASE_URL)
         time.sleep(0.5)
         prefill_login_form(driver, DEFAULT_EMAIL, DEFAULT_PASSWORD)
-        input("ログイン完了後に Enter を押してください → ")
-
-        driver.get(FRIEND_LIST_URL)
-        time.sleep(1.0)
+        messagebox.showinfo(
+            "操作待ち",
+            "Seleniumブラウザで手動ログインし、友だち一覧ページへ移動したら\n"
+            "このメッセージを閉じてください。",
+        )
 
         rows = scrape_friend_list(driver)
         print(f"取得件数: {len(rows)}")
@@ -161,6 +168,26 @@ def main() -> None:
     finally:
         driver.quit()
 
+def start_ui() -> None:
+    root = tk.Tk()
+    root.title("friend_id_scraper")
+    root.geometry("240x120")
+
+    run_button = tk.Button(root, text="実行", width=16)
+
+    def on_run() -> None:
+        run_button.config(state=tk.DISABLED)
+        try:
+            run_scraper()
+            messagebox.showinfo("完了", "処理が完了しました。")
+        except Exception as e:
+            messagebox.showerror("エラー", f"処理中にエラーが発生しました。\n{e}")
+        finally:
+            run_button.config(state=tk.NORMAL)
+
+    run_button.config(command=on_run)
+    run_button.pack(expand=True)
+    root.mainloop()
 
 if __name__ == "__main__":
-    main()
+    start_ui()

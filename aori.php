@@ -2,6 +2,10 @@
 $pageTitle = 'Bull-Fight | 煽り対象一覧';
 require __DIR__ . '/config.php';
 
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+
 $messages = [];
 $errors = [];
 $rows = [];
