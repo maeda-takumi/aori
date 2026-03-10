@@ -70,7 +70,7 @@
     const aoriLabelStatus = document.getElementById('aori-label-modal-status');
     const aoriLabelCancelButton = aoriLabelModal?.querySelector('[data-aori-modal-cancel]');
     const aoriLabelBackdrop = aoriLabelModal?.querySelector('[data-aori-modal-close]');
-    let currentLabelContactId = null;
+    let currentLabelLineUserId = null;
 
     const hideModal = () => {
       if (!chatModal) {
@@ -159,7 +159,7 @@
         return;
       }
       aoriLabelModal.hidden = true;
-      currentLabelContactId = null;
+      currentLabelLineUserId = null;
       aoriLabelForm.reset();
       if (aoriLabelStatus) {
         aoriLabelStatus.hidden = true;
@@ -170,12 +170,12 @@
       }
     };
 
-    const showAoriLabelModal = (contactId, currentLabels) => {
+    const showAoriLabelModal = (lineUserId, currentLabels) => {
       if (!aoriLabelModal || !aoriLabelForm) {
         return;
       }
 
-      currentLabelContactId = contactId;
+      currentLabelLineUserId = lineUserId;
       const checkboxes = aoriLabelForm.querySelectorAll('input[name="labels[]"]');
       checkboxes.forEach((checkbox) => {
         if (!(checkbox instanceof HTMLInputElement)) {
@@ -196,10 +196,10 @@
       aoriLabelModal.hidden = false;
     };
 
-    const saveAoriLabels = async (contactId, labels) => {
+    const saveAoriLabels = async (lineUserId, labels) => {
       const body = new URLSearchParams({
         action: 'save_aori_labels',
-        contact_id: String(contactId)
+        line_user_id: String(lineUserId)
       });
       labels.forEach((label) => body.append('labels[]', label));
 
@@ -226,7 +226,7 @@
         : null;
 
       if (editButton instanceof HTMLButtonElement) {
-        const contactId = Number(editButton.dataset.contactId || '0');
+        const lineUserId = (editButton.dataset.lineUserId || '').trim();
         let currentLabels = [];
         try {
           const rawLabels = editButton.dataset.currentLabels || '[]';
@@ -237,7 +237,7 @@
         } catch (error) {
           currentLabels = [];
         }
-        showAoriLabelModal(contactId, currentLabels);
+        showAoriLabelModal(lineUserId, currentLabels);
         return;
       }
       if (!(button instanceof HTMLButtonElement)) {
@@ -276,7 +276,7 @@
     cancelButton?.addEventListener('click', hideModal);
     backdrop?.addEventListener('click', hideModal);
     aoriLabelSaveButton?.addEventListener('click', async () => {
-      if (!aoriLabelForm || currentLabelContactId === null || currentLabelContactId <= 0) {
+      if (!aoriLabelForm || !currentLabelLineUserId) {
         return;
       }
 
@@ -289,7 +289,7 @@
       }
 
       try {
-        await saveAoriLabels(currentLabelContactId, labels);
+        await saveAoriLabels(currentLabelLineUserId, labels);
         await refreshFilteredResults();
         hideAoriLabelModal();
       } catch (error) {

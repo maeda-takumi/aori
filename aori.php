@@ -59,11 +59,11 @@ try {
         $pdo->exec(
             'CREATE TABLE contact_management (
                 id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-                contact_id INT UNSIGNED NOT NULL,
+                line_user_id VARCHAR(64) NOT NULL,
                 aori_labels TEXT NULL,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                UNIQUE KEY uniq_contact_id (contact_id)
+                UNIQUE KEY uq_contact_management_line_user_id (line_user_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
         );
         $messages[] = 'contact_managementテーブルを作成しました。';
@@ -84,6 +84,17 @@ try {
             $messages[] = 'contact_managementテーブルにcontact_idカラムを追加しました。';
             $hasContactId = true;
         }
+        if (!$hasLineUserId && $hasContactId) {
+            $pdo->exec('ALTER TABLE contact_management ADD COLUMN line_user_id VARCHAR(64) NULL AFTER id');
+            $pdo->exec(
+                'UPDATE contact_management cm
+                 INNER JOIN contacts c ON c.id = cm.contact_id
+                 SET cm.line_user_id = c.line_user_id
+                 WHERE cm.line_user_id IS NULL OR cm.line_user_id = ""'
+            );
+            $messages[] = 'contact_managementテーブルにline_user_idカラムを追加しました。';
+            $hasLineUserId = true;
+        }
         $managementColumnStmt = $pdo->query("SHOW COLUMNS FROM contact_management LIKE 'aori_labels'");
         if ($managementColumnStmt->fetch() === false) {
             if ($hasContactId) {
@@ -100,6 +111,13 @@ try {
             $contactIdUniqueStmt = $pdo->query("SHOW INDEX FROM contact_management WHERE Key_name = 'uniq_contact_id'");
             if ($contactIdUniqueStmt->fetch() === false) {
                 $pdo->exec('ALTER TABLE contact_management ADD UNIQUE KEY uniq_contact_id (contact_id)');
+            }
+        }
+
+        if ($hasLineUserId) {
+            $lineUserIdUniqueStmt = $pdo->query("SHOW INDEX FROM contact_management WHERE Key_name = 'uq_contact_management_line_user_id'");
+            if ($lineUserIdUniqueStmt->fetch() === false) {
+                $pdo->exec('ALTER TABLE contact_management ADD UNIQUE KEY uq_contact_management_line_user_id (line_user_id)');
             }
         }
     }
@@ -179,17 +197,17 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && (($_POST['action'] ?? '') === 'save_aori_labels')) {
         header('Content-Type: application/json; charset=UTF-8');
 
-        $contactId = filter_input(INPUT_POST, 'contact_id', FILTER_VALIDATE_INT);
+        $lineUserId = trim((string)($_POST['line_user_id'] ?? ''));
         $labels = $_POST['labels'] ?? [];
         if (!is_array($labels)) {
             $labels = [];
         }
 
-        if ($contactId === false || $contactId === null) {
+        if ($lineUserId === '') {
             http_response_code(400);
             echo json_encode([
                 'status' => 'error',
-                'message' => '更新対象のIDが不正です。',
+                'message' => '更新対象のLINEユーザーIDが不正です。',
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -205,12 +223,12 @@ try {
         $labelText = implode('|', $normalizedLabels);
 
         $upsertStmt = $pdo->prepare(
-            'INSERT INTO contact_management (contact_id, aori_labels, created_at, updated_at)
-             VALUES (:contact_id, :aori_labels, NOW(), NOW())
+            'INSERT INTO contact_management (line_user_id, aori_labels, created_at, updated_at)
+             VALUES (:line_user_id, :aori_labels, NOW(), NOW())
              ON DUPLICATE KEY UPDATE aori_labels = VALUES(aori_labels), updated_at = NOW()'
         );
         $upsertStmt->execute([
-            'contact_id' => $contactId,
+            'line_user_id' => $lineUserId,
             'aori_labels' => $labelText,
         ]);
 
@@ -285,7 +303,7 @@ try {
             contacts.friend_id,
             cm.aori_labels
         FROM contacts
-        LEFT JOIN contact_management cm ON cm.contact_id = contacts.id";
+        LEFT JOIN contact_management cm ON cm.line_user_id = contacts.line_user_id";
 
     if (!empty($conditions)) {
         $sql .= "\nWHERE " . implode("\n  AND ", $conditions);
@@ -379,7 +397,7 @@ require __DIR__ . '/header.php';
                   class="aori-edit-icon-btn"
                   type="button"
                   data-aori-edit-button
-                  data-contact-id="<?= (int)$row['id']; ?>"
+                  data-line-user-id="<?= htmlspecialchars((string)($row['line_user_id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                   data-current-labels="<?= htmlspecialchars(json_encode($savedLabels, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>"
                   aria-label="状態ラベルを編集"
                 >
