@@ -299,7 +299,7 @@ try {
 
     if ($lastMessageStaleEnabled) {
         $conditions[] = 'last_message_received_at IS NOT NULL';
-        $conditions[] = 'last_message_received_at <= (NOW() - INTERVAL 7 DAY)';
+        $conditions[] = 'DATE(last_message_received_at) <= (CURDATE() - INTERVAL 7 DAY)';
     }
 
     if ($sendAtStaleEnabled) {
