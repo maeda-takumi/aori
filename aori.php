@@ -25,6 +25,23 @@ $aoriLabelOptions = [
     '不安がっている',
 ];
 
+$curriculumStatusOptions = [
+    'カリキュラム進行中',
+    '旧カリキュラム止まっている',
+    'クラウドワークス進行なし',
+    'week1停止',
+    'week2停止',
+    'week3停止',
+    'week4停止',
+    'week5停止',
+    'week6停止',
+    'week7停止',
+    'week8停止',
+    'week9停止',
+    'week10停止',
+    'week11停止',
+    'week12停止',
+];
 $ownerOptions = [
     'all' => 'すべて',
     'hirabayashi' => '平林',
@@ -61,6 +78,7 @@ try {
                 id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                 line_user_id VARCHAR(64) NOT NULL,
                 aori_labels TEXT NULL,
+                curriculum_status VARCHAR(255) NULL,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 UNIQUE KEY uq_contact_management_line_user_id (line_user_id)
@@ -105,6 +123,11 @@ try {
                 $pdo->exec('ALTER TABLE contact_management ADD COLUMN aori_labels TEXT NULL');
             }
             $messages[] = 'contact_managementテーブルにaori_labelsカラムを追加しました。';
+        }
+        $curriculumStatusColumnStmt = $pdo->query("SHOW COLUMNS FROM contact_management LIKE 'curriculum_status'");
+        if ($curriculumStatusColumnStmt->fetch() === false) {
+            $pdo->exec('ALTER TABLE contact_management ADD COLUMN curriculum_status VARCHAR(255) NULL AFTER aori_labels');
+            $messages[] = 'contact_managementテーブルにcurriculum_statusカラムを追加しました。';
         }
 
         if ($hasContactId) {
@@ -198,11 +221,16 @@ try {
         header('Content-Type: application/json; charset=UTF-8');
 
         $lineUserId = trim((string)($_POST['line_user_id'] ?? ''));
+        $labelMode = trim((string)($_POST['label_mode'] ?? 'aori'));
+        if (!in_array($labelMode, ['aori', 'curriculum'], true)) {
+            $labelMode = 'aori';
+        }
         $labels = $_POST['labels'] ?? [];
         if (!is_array($labels)) {
             $labels = [];
         }
 
+        $curriculumStatus = trim((string)($_POST['curriculum_status'] ?? ''));
         if ($lineUserId === '') {
             http_response_code(400);
             echo json_encode([
@@ -220,22 +248,49 @@ try {
             }
         }
         $normalizedLabels = array_values(array_unique($normalizedLabels));
-        $labelText = implode('|', $normalizedLabels);
+        $normalizedCurriculumStatus = '';
+        if ($curriculumStatus !== '' && in_array($curriculumStatus, $curriculumStatusOptions, true)) {
+            $normalizedCurriculumStatus = $curriculumStatus;
+        }
+
+        $existingManagementStmt = $pdo->prepare(
+            'SELECT aori_labels, curriculum_status
+             FROM contact_management
+             WHERE line_user_id = :line_user_id
+             LIMIT 1'
+        );
+        $existingManagementStmt->execute(['line_user_id' => $lineUserId]);
+        $existing = $existingManagementStmt->fetch();
+
+        $storedAoriLabelText = $existing['aori_labels'] ?? '';
+        $storedCurriculumStatus = $existing['curriculum_status'] ?? '';
+
+        if ($labelMode === 'aori') {
+            $storedAoriLabelText = implode('|', $normalizedLabels);
+        } elseif ($labelMode === 'curriculum') {
+            $storedCurriculumStatus = $normalizedCurriculumStatus;
+        }
 
         $upsertStmt = $pdo->prepare(
-            'INSERT INTO contact_management (line_user_id, aori_labels, created_at, updated_at)
-             VALUES (:line_user_id, :aori_labels, NOW(), NOW())
-             ON DUPLICATE KEY UPDATE aori_labels = VALUES(aori_labels), updated_at = NOW()'
+            'INSERT INTO contact_management (line_user_id, aori_labels, curriculum_status, created_at, updated_at)
+             VALUES (:line_user_id, :aori_labels, :curriculum_status, NOW(), NOW())
+             ON DUPLICATE KEY UPDATE
+             aori_labels = VALUES(aori_labels),
+             curriculum_status = VALUES(curriculum_status),
+             updated_at = NOW()'
         );
         $upsertStmt->execute([
             'line_user_id' => $lineUserId,
-            'aori_labels' => $labelText,
+            'aori_labels' => $storedAoriLabelText,
+            'curriculum_status' => $storedCurriculumStatus,
         ]);
 
         echo json_encode([
             'status' => 'ok',
             'message' => '状態を保存しました。',
+            'label_mode' => $labelMode,
             'labels' => $normalizedLabels,
+            'curriculum_status' => $normalizedCurriculumStatus,
         ], JSON_UNESCAPED_UNICODE);
         exit;
     }
@@ -301,7 +356,8 @@ try {
             contacts.line_user_id,
             contacts.chat_url,
             contacts.friend_id,
-            cm.aori_labels
+            cm.aori_labels,
+            cm.curriculum_status
         FROM contacts
         LEFT JOIN contact_management cm ON cm.line_user_id = contacts.line_user_id";
 
@@ -399,6 +455,7 @@ require __DIR__ . '/header.php';
                   data-aori-edit-button
                   data-line-user-id="<?= htmlspecialchars((string)($row['line_user_id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                   data-current-labels="<?= htmlspecialchars(json_encode($savedLabels, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>"
+                  data-current-curriculum-status="<?= htmlspecialchars((string)($row['curriculum_status'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                   aria-label="状態ラベルを編集"
                 >
                   <img src="img/edit2.png" alt="編集">
@@ -409,6 +466,11 @@ require __DIR__ . '/header.php';
                   <?php foreach ($savedLabels as $savedLabel): ?>
                     <span class="aori-label-badge aori-label-<?= abs(crc32($savedLabel)) % 8; ?>"><?= htmlspecialchars($savedLabel, ENT_QUOTES, 'UTF-8'); ?></span>
                   <?php endforeach; ?>
+                </div>
+              <?php endif; ?>
+              <?php if (!empty($row['curriculum_status'])): ?>
+                <div class="aori-label-badges">
+                  <span class="aori-label-badge aori-label-curriculum"><?= htmlspecialchars((string)$row['curriculum_status'], ENT_QUOTES, 'UTF-8'); ?></span>
                 </div>
               <?php endif; ?>
               <span>システム表示名: <?= htmlspecialchars((string)($row['system_display_name'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
@@ -473,13 +535,37 @@ require __DIR__ . '/header.php';
   <div class="chat-modal__backdrop" data-aori-modal-close></div>
   <div class="chat-modal__dialog glass" role="dialog" aria-modal="true" aria-labelledby="aori-label-modal-title">
     <h3 id="aori-label-modal-title">状態ラベル編集</h3>
+    <div class="aori-label-mode-switch" role="radiogroup" aria-label="編集対象ラベル">
+      <label class="aori-label-mode-option">
+        <input type="radio" name="label_mode" value="aori" checked>
+        <span>状態ラベル</span>
+      </label>
+      <label class="aori-label-mode-option">
+        <input type="radio" name="label_mode" value="curriculum">
+        <span>カリキュラム状況</span>
+      </label>
+    </div>
     <form id="aori-label-form" class="aori-label-form">
-      <?php foreach ($aoriLabelOptions as $label): ?>
+      <div data-label-panel="aori">
+        <?php foreach ($aoriLabelOptions as $label): ?>
+          <label class="aori-label-option">
+            <input type="checkbox" name="labels[]" value="<?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8'); ?>">
+            <span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8'); ?></span>
+          </label>
+        <?php endforeach; ?>
+      </div>
+      <div data-label-panel="curriculum" hidden>
         <label class="aori-label-option">
-          <input type="checkbox" name="labels[]" value="<?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8'); ?>">
-          <span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8'); ?></span>
+          <input type="radio" name="curriculum_status" value="" checked>
+          <span>未設定（解除）</span>
         </label>
-      <?php endforeach; ?>
+        <?php foreach ($curriculumStatusOptions as $status): ?>
+          <label class="aori-label-option">
+            <input type="radio" name="curriculum_status" value="<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>">
+            <span><?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?></span>
+          </label>
+        <?php endforeach; ?>
+      </div>
     </form>
     <p id="aori-label-modal-status" class="chat-modal__status" hidden></p>
     <div class="chat-modal__actions">

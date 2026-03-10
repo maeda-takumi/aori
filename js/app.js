@@ -72,6 +72,7 @@
     const aoriLabelCancelButton = aoriLabelModal?.querySelector('[data-aori-modal-cancel]');
     const aoriLabelBackdrop = aoriLabelModal?.querySelector('[data-aori-modal-close]');
     let currentLabelLineUserId = null;
+    let currentLabelMode = 'aori';
 
     const hideModal = () => {
       if (!chatModal) {
@@ -162,12 +163,36 @@
       resultsContainer = nextResults;
     };
 
+    const setAoriLabelMode = (mode) => {
+      if (!aoriLabelModal) {
+        return;
+      }
+      const normalizedMode = mode === 'curriculum' ? 'curriculum' : 'aori';
+      currentLabelMode = normalizedMode;
+
+      const modeInputs = aoriLabelModal.querySelectorAll('input[name="label_mode"]');
+      modeInputs.forEach((input) => {
+        if (!(input instanceof HTMLInputElement)) {
+          return;
+        }
+        input.checked = input.value === normalizedMode;
+      });
+
+      const panels = aoriLabelModal.querySelectorAll('[data-label-panel]');
+      panels.forEach((panel) => {
+        if (!(panel instanceof HTMLElement)) {
+          return;
+        }
+        panel.hidden = panel.dataset.labelPanel !== normalizedMode;
+      });
+    };
     const hideAoriLabelModal = () => {
       if (!aoriLabelModal || !aoriLabelForm) {
         return;
       }
       aoriLabelModal.hidden = true;
       currentLabelLineUserId = null;
+      currentLabelMode = 'aori';
       aoriLabelForm.reset();
       if (aoriLabelStatus) {
         aoriLabelStatus.hidden = true;
@@ -176,9 +201,10 @@
       if (aoriLabelSaveButton) {
         aoriLabelSaveButton.disabled = false;
       }
+      setAoriLabelMode('aori');
     };
 
-    const showAoriLabelModal = (lineUserId, currentLabels) => {
+    const showAoriLabelModal = (lineUserId, currentLabels, currentCurriculumStatus = '') => {
       if (!aoriLabelModal || !aoriLabelForm) {
         return;
       }
@@ -192,6 +218,24 @@
         checkbox.checked = currentLabels.includes(checkbox.value);
       });
 
+      const curriculumInputs = aoriLabelForm.querySelectorAll('input[name="curriculum_status"]');
+      let hasMatchedCurriculumStatus = false;
+      curriculumInputs.forEach((input) => {
+        if (!(input instanceof HTMLInputElement)) {
+          return;
+        }
+        const isMatched = input.value === currentCurriculumStatus;
+        input.checked = isMatched;
+        if (isMatched) {
+          hasMatchedCurriculumStatus = true;
+        }
+      });
+      if (!hasMatchedCurriculumStatus) {
+        const clearCurriculumInput = aoriLabelForm.querySelector('input[name="curriculum_status"][value=""]');
+        if (clearCurriculumInput instanceof HTMLInputElement) {
+          clearCurriculumInput.checked = true;
+        }
+      }
       if (aoriLabelStatus) {
         aoriLabelStatus.hidden = true;
         aoriLabelStatus.textContent = '';
@@ -204,12 +248,17 @@
       aoriLabelModal.hidden = false;
     };
 
-    const saveAoriLabels = async (lineUserId, labels) => {
+    const saveAoriLabels = async (lineUserId, labels, labelMode, curriculumStatus) => {
       const body = new URLSearchParams({
         action: 'save_aori_labels',
-        line_user_id: String(lineUserId)
+        line_user_id: String(lineUserId),
+        label_mode: labelMode
       });
-      labels.forEach((label) => body.append('labels[]', label));
+      if (labelMode === 'aori') {
+        labels.forEach((label) => body.append('labels[]', label));
+      } else {
+        body.set('curriculum_status', curriculumStatus);
+      }
 
       const response = await fetch('aori.php', {
         method: 'POST',
@@ -248,7 +297,8 @@
         } catch (error) {
           currentLabels = [];
         }
-        showAoriLabelModal(lineUserId, currentLabels);
+        const currentCurriculumStatus = (editButton.dataset.currentCurriculumStatus || '').trim();
+        showAoriLabelModal(lineUserId, currentLabels, currentCurriculumStatus);
         return;
       }
       if (chatButton instanceof HTMLButtonElement) {
@@ -330,13 +380,17 @@
       const labels = Array.from(aoriLabelForm.querySelectorAll('input[name="labels[]"]:checked'))
         .filter((checkbox) => checkbox instanceof HTMLInputElement)
         .map((checkbox) => checkbox.value);
+      const selectedCurriculumInput = aoriLabelForm.querySelector('input[name="curriculum_status"]:checked');
+      const curriculumStatus = selectedCurriculumInput instanceof HTMLInputElement
+        ? selectedCurriculumInput.value
+        : '';
 
       if (aoriLabelSaveButton) {
         aoriLabelSaveButton.disabled = true;
       }
 
       try {
-        await saveAoriLabels(currentLabelLineUserId, labels);
+        await saveAoriLabels(currentLabelLineUserId, labels, currentLabelMode, curriculumStatus);
         await refreshFilteredResults();
         hideAoriLabelModal();
       } catch (error) {
@@ -350,6 +404,16 @@
       }
     });
 
+    aoriLabelModal?.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) {
+        return;
+      }
+      if (target.name !== 'label_mode') {
+        return;
+      }
+      setAoriLabelMode(target.value);
+    });
     aoriLabelCancelButton?.addEventListener('click', hideAoriLabelModal);
     aoriLabelBackdrop?.addEventListener('click', hideAoriLabelModal);
   });
