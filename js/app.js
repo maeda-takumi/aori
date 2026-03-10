@@ -225,6 +225,9 @@
       }
     };
     document.addEventListener('click', (event) => {
+      const editButton = event.target instanceof Element
+        ? event.target.closest('[data-aori-edit-button]')
+        : null;
       const chatButton = event.target instanceof Element
         ? event.target.closest('.js-chat-button')
         : null;
