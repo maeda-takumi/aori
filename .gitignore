@@ -1,0 +1,10 @@
+# Build artifacts
+build/
+dist/
+*.zip
+# Python artifacts
+*.toc
+*.log
+*.aux
+*.toc
+*.out

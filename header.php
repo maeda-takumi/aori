@@ -25,11 +25,11 @@
         <a href="index.php" class="import-icon-btn" aria-label="ホーム画面へ移動">
             <img src="img/home.png" alt="ホーム">
         </a>
-        <a href="aori.php" class="import-icon-btn import-icon-btn2" aria-label="煽り画面へ移動">
-            <img src="img/aori.png" alt="煽り">
-        </a>
         <a href="import.php" class="import-icon-btn" aria-label="インポート画面へ移動">
             <img src="img/import.png" alt="インポート">
+        </a>
+        <a href="aori.php" class="import-icon-btn import-icon-btn2" aria-label="煽り画面へ移動">
+            <img src="img/aori.png" alt="煽り">
         </a>
       </div>
     </div>
