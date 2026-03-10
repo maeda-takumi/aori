@@ -327,6 +327,9 @@ body {
   display: grid;
   gap: 8px;
 }
+.aori-label-form [data-label-panel][hidden] {
+  display: none;
+}
 .aori-meta span {
   color: var(--muted);
   font-size: 0.92rem;

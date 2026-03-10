@@ -377,6 +377,11 @@
         return;
       }
 
+      const selectedModeInput = aoriLabelModal?.querySelector('input[name="label_mode"]:checked');
+      const labelMode = selectedModeInput instanceof HTMLInputElement
+        ? selectedModeInput.value
+        : currentLabelMode;
+
       const labels = Array.from(aoriLabelForm.querySelectorAll('input[name="labels[]"]:checked'))
         .filter((checkbox) => checkbox instanceof HTMLInputElement)
         .map((checkbox) => checkbox.value);
@@ -390,7 +395,7 @@
       }
 
       try {
-        await saveAoriLabels(currentLabelLineUserId, labels, currentLabelMode, curriculumStatus);
+        await saveAoriLabels(currentLabelLineUserId, labels, labelMode, curriculumStatus);
         await refreshFilteredResults();
         hideAoriLabelModal();
       } catch (error) {
