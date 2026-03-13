@@ -9,6 +9,11 @@ header('Expires: 0');
 $messages = [];
 $errors = [];
 $logs = [];
+$perPage = 25;
+$currentPage = filter_input(INPUT_GET, 'page', FILTER_VALIDATE_INT);
+$currentPage = ($currentPage !== false && $currentPage !== null && $currentPage > 0) ? $currentPage : 1;
+$totalLogs = 0;
+$totalPages = 1;
 $showReverted = isset($_GET['show_reverted']) && $_GET['show_reverted'] === '1';
 
 try {
@@ -166,6 +171,21 @@ try {
         $latestActiveMap[(int)$latestRow['contact_id']] = (int)$latestRow['latest_active_id'];
     }
 
+    $countSql = 'SELECT COUNT(*)
+            FROM aori_send_logs logs
+            LEFT JOIN contacts ON contacts.id = logs.contact_id';
+
+    if (!$showReverted) {
+        $countSql .= ' WHERE logs.reverted_at IS NULL';
+    }
+
+    $totalLogs = (int)$pdo->query($countSql)->fetchColumn();
+    $totalPages = max(1, (int)ceil($totalLogs / $perPage));
+    if ($currentPage > $totalPages) {
+        $currentPage = $totalPages;
+    }
+    $offset = ($currentPage - 1) * $perPage;
+
     $sql = 'SELECT
                 logs.id,
                 logs.contact_id,
@@ -183,9 +203,12 @@ try {
         $sql .= ' WHERE logs.reverted_at IS NULL';
     }
 
-    $sql .= ' ORDER BY logs.sent_at DESC, logs.id DESC';
+    $sql .= ' ORDER BY logs.sent_at DESC, logs.id DESC LIMIT :limit OFFSET :offset';
 
-    $logsStmt = $pdo->query($sql);
+    $logsStmt = $pdo->prepare($sql);
+    $logsStmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+    $logsStmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $logsStmt->execute();
     $logs = $logsStmt->fetchAll();
 
     foreach ($logs as $index => $logRow) {
@@ -271,6 +294,17 @@ require __DIR__ . '/header.php';
       </table>
     <?php endif; ?>
   </div>
+  <?php if ($totalPages > 1): ?>
+    <nav class="log-pagination" aria-label="ログ一覧のページャー">
+      <?php if ($currentPage > 1): ?>
+        <a class="btn" href="?show_reverted=<?= $showReverted ? '1' : '0'; ?>&page=<?= $currentPage - 1; ?>">前へ</a>
+      <?php endif; ?>
+      <span><?= $currentPage; ?> / <?= $totalPages; ?> ページ（全<?= $totalLogs; ?>件）</span>
+      <?php if ($currentPage < $totalPages): ?>
+        <a class="btn" href="?show_reverted=<?= $showReverted ? '1' : '0'; ?>&page=<?= $currentPage + 1; ?>">次へ</a>
+      <?php endif; ?>
+    </nav>
+  <?php endif; ?>
 </section>
 
 <?php require __DIR__ . '/footer.php';

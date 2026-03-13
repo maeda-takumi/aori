@@ -118,7 +118,6 @@ body {
 }
 
 .btn {
-  margin-top: 18px;
   display: inline-block;
   border: 0;
   border-radius: 12px;
@@ -130,6 +129,7 @@ body {
   transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease;
   box-shadow: 0 8px 20px rgba(91, 75, 255, 0.28);
     min-width: 90px;
+    text-align: center;
 }
 
 .btn:hover {
@@ -345,7 +345,7 @@ body {
 
 .aori-actions {
   display: grid;
-  gap: 10px;
+  gap: 30px;
   justify-items: end;
 }
 
@@ -581,4 +581,12 @@ body {
 .log-subtext {
   font-size: 0.78rem;
   color: var(--muted);
+}
+
+.log-pagination {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 }

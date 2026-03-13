@@ -30,7 +30,7 @@ require __DIR__ . '/header.php';
     </li>
     <li style="margin-top: 10px;">
       <img src="img/log.png" alt="ログアイコン" width="20" height="20" style="vertical-align: middle; margin-right: 6px;">
-      <strong>ログ</strong>：完了した記録を確認できます。
+      <strong>ログ</strong>：完了状態を解除できます。
     </li>
   </ul>
 

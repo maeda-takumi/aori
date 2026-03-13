@@ -5,7 +5,7 @@
 
   <footer class="site-footer">
     <div class="container">
-      <small>&copy; <?= date('Y'); ?> LMessage Tool</small>
+      <small>&copy; <?= date('Y'); ?> Bull-Fight</small>
     </div>
   </footer>
 
