@@ -509,6 +509,7 @@ body {
   border: 1px solid rgba(31, 35, 64, 0.1);
   color: var(--text) !important;
   line-height: 1.5;
+  min-width: 100%;
 }
 
 .aori-label-form {

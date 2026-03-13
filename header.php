@@ -47,6 +47,9 @@ if (is_file($importStatusPath) && is_readable($importStatusPath)) {
         <a href="aori.php" class="import-icon-btn import-icon-btn2" aria-label="煽り画面へ移動">
             <img src="img/aori.png" alt="煽り">
         </a>
+        <a href="log.php" class="import-icon-btn import-icon-btn2" aria-label="ログ画面へ移動">
+            <img src="img/log.png" alt="ログ">
+        </a>
       </div>
     </div>
   </header>
