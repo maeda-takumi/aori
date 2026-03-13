@@ -75,6 +75,56 @@ try {
         $messages[] = 'contactsテーブルにsend_atカラムを追加しました。';
     }
 
+    $currentLogIdColumnStmt = $pdo->query("SHOW COLUMNS FROM contacts LIKE 'current_send_log_id'");
+    $hasCurrentSendLogId = $currentLogIdColumnStmt->fetch() !== false;
+    if (!$hasCurrentSendLogId) {
+        $pdo->exec('ALTER TABLE contacts ADD COLUMN current_send_log_id BIGINT UNSIGNED NULL AFTER send_at');
+        $messages[] = 'contactsテーブルにcurrent_send_log_idカラムを追加しました。';
+    }
+
+    $sendLogTableExists = $pdo->query("SHOW TABLES LIKE 'aori_send_logs'")->fetch() !== false;
+    if (!$sendLogTableExists) {
+        $pdo->exec(
+            'CREATE TABLE aori_send_logs (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                contact_id INT UNSIGNED NOT NULL,
+                sent_at DATETIME NOT NULL,
+                reverted_at DATETIME NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_aori_send_logs_contact_sent (contact_id, sent_at),
+                INDEX idx_aori_send_logs_contact_active (contact_id, reverted_at, sent_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+        );
+        $messages[] = 'aori_send_logsテーブルを作成しました。';
+    }
+
+    $needsBackfill = (int)$pdo->query('SELECT COUNT(*) FROM contacts WHERE send_at IS NOT NULL AND send_at <> "0000-00-00 00:00:00" AND current_send_log_id IS NULL')->fetchColumn() > 0;
+    if ($needsBackfill) {
+        $pdo->beginTransaction();
+        $legacySendRows = $pdo->query(
+            'SELECT id, send_at
+             FROM contacts
+             WHERE send_at IS NOT NULL
+               AND send_at <> "0000-00-00 00:00:00"
+               AND current_send_log_id IS NULL'
+        )->fetchAll();
+        $insertLegacyLogStmt = $pdo->prepare('INSERT INTO aori_send_logs (contact_id, sent_at, reverted_at, created_at, updated_at) VALUES (:contact_id, :sent_at, NULL, NOW(), NOW())');
+        $updateCurrentLegacyLogStmt = $pdo->prepare('UPDATE contacts SET current_send_log_id = :current_send_log_id WHERE id = :id');
+
+        foreach ($legacySendRows as $legacySendRow) {
+            $insertLegacyLogStmt->execute([
+                'contact_id' => (int)$legacySendRow['id'],
+                'sent_at' => (string)$legacySendRow['send_at'],
+            ]);
+            $updateCurrentLegacyLogStmt->execute([
+                'current_send_log_id' => (int)$pdo->lastInsertId(),
+                'id' => (int)$legacySendRow['id'],
+            ]);
+        }
+        $pdo->commit();
+        $messages[] = '既存の前回煽り送信日時をaori_send_logsへ移行しました。';
+    }
     $contactManagementExists = $pdo->query("SHOW TABLES LIKE 'contact_management'")->fetch() !== false;
     if (!$contactManagementExists) {
         $pdo->exec(
@@ -203,21 +253,46 @@ try {
             exit;
         }
 
-        $updateStmt = $pdo->prepare('UPDATE contacts SET send_at = NOW() WHERE id = :id');
-        $updateStmt->execute(['id' => $contentId]);
+        try {
+            $pdo->beginTransaction();
+            $contactExistsStmt = $pdo->prepare('SELECT id FROM contacts WHERE id = :id FOR UPDATE');
+            $contactExistsStmt->execute(['id' => $contentId]);
+            if ($contactExistsStmt->fetch() === false) {
+                $pdo->rollBack();
+                http_response_code(404);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => '対象データを更新できませんでした。',
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
 
-        if ($updateStmt->rowCount() > 0) {
-            echo json_encode([
-                'status' => 'ok',
-                'message' => '前回煽り送信日時を記録しました。',
-            ], JSON_UNESCAPED_UNICODE);
-        } else {
-            http_response_code(404);
-            echo json_encode([
-                'status' => 'error',
-                'message' => '対象データを更新できませんでした。',
-            ], JSON_UNESCAPED_UNICODE);
+            $insertLogStmt = $pdo->prepare('INSERT INTO aori_send_logs (contact_id, sent_at, reverted_at, created_at, updated_at) VALUES (:contact_id, NOW(), NULL, NOW(), NOW())');
+            $insertLogStmt->execute(['contact_id' => $contentId]);
+            $newLogId = (int)$pdo->lastInsertId();
+
+            $latestSentAtStmt = $pdo->prepare('SELECT sent_at FROM aori_send_logs WHERE id = :id');
+            $latestSentAtStmt->execute(['id' => $newLogId]);
+            $latestSentAt = (string)$latestSentAtStmt->fetchColumn();
+
+            $updateStmt = $pdo->prepare('UPDATE contacts SET send_at = :send_at, current_send_log_id = :current_send_log_id WHERE id = :id');
+            $updateStmt->execute([
+                'send_at' => $latestSentAt,
+                'current_send_log_id' => $newLogId,
+                'id' => $contentId,
+            ]);
+
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
         }
+        echo json_encode([
+            'status' => 'ok',
+            'message' => '前回煽り送信日時を記録しました。',
+        ], JSON_UNESCAPED_UNICODE);
         exit;
     }
 

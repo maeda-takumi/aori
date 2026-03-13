@@ -527,3 +527,58 @@ body {
   color: var(--text);
   font-weight: 600;
 }
+.log-filter-form {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+.log-table-wrap {
+  margin-top: 14px;
+  border-radius: 14px;
+  padding: 12px;
+  overflow-x: auto;
+}
+
+.log-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+.log-table th,
+.log-table td {
+  border-bottom: 1px solid rgba(31, 35, 64, 0.12);
+  text-align: left;
+  padding: 10px 8px;
+  vertical-align: middle;
+}
+
+.log-row-reverted {
+  background: rgba(31, 35, 64, 0.08);
+  color: rgba(31, 35, 64, 0.62);
+}
+
+.log-status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.log-status-badge.active {
+  background: rgba(31, 132, 90, 0.12);
+  color: var(--success);
+}
+
+.log-status-badge.reverted {
+  background: rgba(31, 35, 64, 0.12);
+  color: rgba(31, 35, 64, 0.8);
+}
+
+.log-subtext {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
