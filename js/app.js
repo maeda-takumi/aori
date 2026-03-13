@@ -15,6 +15,30 @@
         );
       });
     });
+    const navToggleButton = document.querySelector('.nav-toggle');
+    const headerNavLinks = document.getElementById('header-nav-links');
+
+    if (navToggleButton && headerNavLinks) {
+      navToggleButton.addEventListener('click', () => {
+        const isExpanded = navToggleButton.getAttribute('aria-expanded') === 'true';
+        navToggleButton.setAttribute('aria-expanded', isExpanded ? 'false' : 'true');
+        headerNavLinks.classList.toggle('is-open', !isExpanded);
+      });
+
+      headerNavLinks.querySelectorAll('a').forEach((link) => {
+        link.addEventListener('click', () => {
+          navToggleButton.setAttribute('aria-expanded', 'false');
+          headerNavLinks.classList.remove('is-open');
+        });
+      });
+
+      window.addEventListener('resize', () => {
+        if (window.innerWidth > 780) {
+          navToggleButton.setAttribute('aria-expanded', 'false');
+          headerNavLinks.classList.remove('is-open');
+        }
+      });
+    }
     const fileInput = document.getElementById('csv-file');
     const dropZone = document.getElementById('drop-zone');
     const selectedFile = document.getElementById('selected-file');

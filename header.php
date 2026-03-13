@@ -37,7 +37,18 @@ if (is_file($importStatusPath) && is_readable($importStatusPath)) {
           <p class="import-completed-at">最終インポート完了: <?= htmlspecialchars($latestImportCompletedAt, ENT_QUOTES, 'UTF-8'); ?></p>
         <?php endif; ?>
       </div>
-      <div class="nav-links">
+      <button
+        type="button"
+        class="nav-toggle"
+        aria-label="ナビゲーションメニューを開閉"
+        aria-controls="header-nav-links"
+        aria-expanded="false"
+      >
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+      <div class="nav-links" id="header-nav-links">
         <a href="index.php" class="import-icon-btn" aria-label="ホーム画面へ移動">
             <img src="img/home.png" alt="ホーム">
         </a>

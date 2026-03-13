@@ -19,6 +19,34 @@
     align-items: center;
     gap: 15px;
 }
+.nav-toggle {
+  display: none;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  border: 1px solid rgba(91, 75, 255, 0.22);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 20px rgba(31, 35, 64, 0.14);
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+
+.nav-toggle span {
+  width: 22px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--text);
+  transition: transform .25s ease, opacity .25s ease;
+}
+
+.nav-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(31, 35, 64, 0.18);
+}
 body {
   margin: 0;
   color: var(--text);
@@ -589,4 +617,66 @@ body {
   align-items: center;
   justify-content: center;
   gap: 10px;
+}
+@media (max-width: 780px) {
+  .header-inner {
+    position: relative;
+    padding: 10px 0;
+  }
+
+  .site-brand {
+    padding: 8px 0;
+    max-width: calc(100% - 64px);
+  }
+
+  .nav-toggle {
+    display: inline-flex;
+    z-index: 12;
+  }
+
+  .nav-toggle[aria-expanded="true"] span:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+  }
+
+  .nav-toggle[aria-expanded="true"] span:nth-child(2) {
+    opacity: 0;
+  }
+
+  .nav-toggle[aria-expanded="true"] span:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+  }
+
+  .nav-links {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    display: grid;
+    gap: 10px;
+    justify-items: end;
+    pointer-events: none;
+    z-index: 11;
+  }
+
+  .nav-links .import-icon-btn {
+    transform: translateX(130%);
+    opacity: 0;
+    pointer-events: none;
+    box-shadow: 0 8px 20px rgba(31, 35, 64, 0.18);
+    transition: transform .34s cubic-bezier(.2,.8,.2,1), opacity .2s ease;
+  }
+
+  .nav-links.is-open {
+    pointer-events: auto;
+  }
+
+  .nav-links.is-open .import-icon-btn {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .nav-links.is-open .import-icon-btn:nth-child(1) { transition-delay: 0.03s; }
+  .nav-links.is-open .import-icon-btn:nth-child(2) { transition-delay: 0.09s; }
+  .nav-links.is-open .import-icon-btn:nth-child(3) { transition-delay: 0.15s; }
+  .nav-links.is-open .import-icon-btn:nth-child(4) { transition-delay: 0.21s; }
 }
