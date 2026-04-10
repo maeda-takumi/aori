@@ -485,7 +485,8 @@ body {
   font-weight: 600;
 }
 
-.aori-filter-field select {
+.aori-filter-field select,
+.aori-filter-field input[type="date"] {
   border: 1px solid rgba(31, 35, 64, 0.16);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.9);
@@ -493,6 +494,9 @@ body {
   color: var(--text);
 }
 
+.aori-filter-field input[type="date"] {
+  min-height: 42px;
+}
 .aori-check {
   display: flex;
   align-items: center;

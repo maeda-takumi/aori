@@ -60,6 +60,13 @@ if (!array_key_exists($selectedOwner, $ownerOptions)) {
 
 $lastMessageStaleEnabled = !isset($_GET['last_message_stale']) || $_GET['last_message_stale'] === '1';
 $sendAtStaleEnabled = !isset($_GET['send_at_stale']) || $_GET['send_at_stale'] === '1';
+$lastMessageDate = trim((string)($_GET['last_message_date'] ?? ''));
+if ($lastMessageDate !== '') {
+    $date = DateTime::createFromFormat('Y-m-d', $lastMessageDate);
+    if ($date === false || $date->format('Y-m-d') !== $lastMessageDate) {
+        $lastMessageDate = '';
+    }
+}
 
 try {
     $dsn = sprintf('mysql:host=%s;dbname=%s;charset=%s', DB_HOST, DB_NAME, DB_CHARSET);
@@ -231,6 +238,7 @@ try {
         'owner_filter' => $selectedOwner,
         'last_message_stale' => $lastMessageStaleEnabled ? '1' : '0',
         'send_at_stale' => $sendAtStaleEnabled ? '1' : '0',
+        'last_message_date' => $lastMessageDate,
     ];
 
     foreach ($selectedSupportMarks as $supportMark) {
@@ -366,6 +374,11 @@ try {
         $conditions[] = 'DATE(last_message_received_at) <= (CURDATE() - INTERVAL 7 DAY)';
     }
 
+    if ($lastMessageDate !== '') {
+        $conditions[] = 'DATE(last_message_received_at) = :last_message_date';
+        $params[':last_message_date'] = $lastMessageDate;
+    }
+
     if ($sendAtStaleEnabled) {
         $conditions[] = '(send_at IS NULL OR send_at <= (NOW() - INTERVAL 7 DAY))';
     }
@@ -483,6 +496,10 @@ require __DIR__ . '/header.php';
         <input type="hidden" name="send_at_stale" value="0">
         <input type="checkbox" name="send_at_stale" value="1" <?= $sendAtStaleEnabled ? 'checked' : ''; ?>>
         前回煽り送信日が1週間以上前 または 空欄のみ
+      </label>
+      <label class="aori-filter-field">
+        最終受信日（年月日）
+        <input type="date" name="last_message_date" value="<?= htmlspecialchars($lastMessageDate, ENT_QUOTES, 'UTF-8'); ?>">
       </label>
     </div>
 
