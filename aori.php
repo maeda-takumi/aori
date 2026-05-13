@@ -55,28 +55,28 @@ $ownerOptions = [
 ];
 $geminiModelOptions = [
     'gemini-3.1-flash-lite-preview' => [
-        'label' => '🏆 Gemini 3.1 Flash-Lite Preview',
-        'short_label' => 'Gemini 3.1 Flash-Lite Preview',
-        'badge' => '性能最優先',
+        'label' => '🙁 gemini-3.1-flash-lite-preview',
+        'short_label' => 'gemini-3.1-flash-lite-preview',
+        'badge' => '生産性重視',
         'limit' => '1日上限: 500',
-        'feature' => '3モデル中ベンチマーク最上位。高速・低遅延で進捗確認文の品質も狙いやすいが、Previewのため挙動や上限が変わる可能性があります。',
-        'rank' => '一番優秀',
+        'feature' => '他のモデルにやや質は劣るが、大量生産可能',
+        'rank' => '大量生成',
     ],
     'gemini-2.5-flash' => [
         'label' => '⚖️ Gemini 2.5 Flash',
         'short_label' => 'Gemini 2.5 Flash',
-        'badge' => '安定・バランス',
+        'badge' => 'クオリティ重視',
         'limit' => '1日上限: 20',
-        'feature' => '安定版で、品質・速度・使いやすさのバランスが良いモデル。Previewを避けたい通常運用に向いています。',
-        'rank' => '安定運用',
+        'feature' => '最高品質を提供するモデル。',
+        'rank' => '質重視',
     ],
     'gemini-2.5-flash-lite' => [
         'label' => '⚡ Gemini 2.5 Flash-Lite',
         'short_label' => 'Gemini 2.5 Flash-Lite',
-        'badge' => '上限多め・低コスト',
+        'badge' => '安定・バランス',
         'limit' => '1日上限: 20',
-        'feature' => '3モデル中もっとも軽量で、日次上限に余裕があります。大量生成や簡単な文面作成を優先するときに向いています。',
-        'rank' => '大量生成',
+        'feature' => 'gemini-2.5-flash軽量だが、品質がやや落ちるモデル。',
+        'rank' => '安定運用',
     ],
 ];
 
@@ -225,10 +225,18 @@ function call_gemini_api(string $model, string $prompt): string
         'generationConfig' => [
             'temperature' => 0.7,
             'topP' => 0.9,
-            'maxOutputTokens' => 512,
+            'maxOutputTokens' => 2048,
         ],
     ];
 
+    if ($model === 'gemini-2.5-flash') {
+        // Gemini 2.5 Flash enables dynamic thinking by default. For short LINE draft generation,
+        // disable thinking so the response budget is used for the visible message instead of
+        // internal reasoning tokens.
+        $payload['generationConfig']['thinkingConfig'] = [
+            'thinkingBudget' => 0,
+        ];
+    }
     $ch = curl_init($url);
     if ($ch === false) {
         throw new RuntimeException('Gemini API呼び出しの初期化に失敗しました。');
@@ -258,6 +266,33 @@ function call_gemini_api(string $model, string $prompt): string
     }
 
     $text = trim((string)($decoded['candidates'][0]['content']['parts'][0]['text'] ?? ''));
+    $candidate = $decoded['candidates'][0] ?? null;
+    if (!is_array($candidate)) {
+        throw new RuntimeException('Gemini APIから生成候補が返りませんでした。');
+    }
+
+    $finishReason = (string)($candidate['finishReason'] ?? '');
+    $parts = $candidate['content']['parts'] ?? [];
+    $textParts = [];
+    if (is_array($parts)) {
+        foreach ($parts as $part) {
+            if (!is_array($part) || !empty($part['thought'])) {
+                continue;
+            }
+            $partText = (string)($part['text'] ?? '');
+            if ($partText !== '') {
+                $textParts[] = $partText;
+            }
+        }
+    }
+
+    $text = trim(implode('', $textParts));
+    if ($finishReason === 'MAX_TOKENS') {
+        throw new RuntimeException('Gemini APIの出力上限に達したため、生成文が途中で停止しました。もう一度生成してください。');
+    }
+    if ($finishReason !== '' && !in_array($finishReason, ['STOP', 'FINISH_REASON_UNSPECIFIED'], true)) {
+        throw new RuntimeException('Gemini APIが生成を完了できませんでした。終了理由: ' . $finishReason);
+    }
     if ($text === '') {
         throw new RuntimeException('Gemini APIから生成文が返りませんでした。');
     }

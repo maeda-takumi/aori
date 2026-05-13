@@ -49,7 +49,7 @@ if (is_file($importStatusPath) && is_readable($importStatusPath)) {
         <span></span>
       </button>
       <div class="nav-links" id="header-nav-links">
-        <button type="button" class="import-icon-btn ai-prompt-header-btn" id="ai-prompt-open" aria-label="AIプロンプトを変更">AI</button>
+        <!-- <button type="button" class="import-icon-btn ai-prompt-header-btn" id="ai-prompt-open" aria-label="AIプロンプトを変更">AI</button> -->
         <a href="index.php" class="import-icon-btn" aria-label="ホーム画面へ移動">
             <img src="img/home.png" alt="ホーム">
         </a>
