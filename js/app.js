@@ -109,6 +109,7 @@
     const aiStatus = document.getElementById('aori-ai-modal-status');
     const aiResult = document.getElementById('aori-ai-result');
     const aiGenerateButton = document.getElementById('aori-ai-generate');
+    const aiCopyButton = document.getElementById('aori-ai-copy');
     const aiCancelButton = aiModal?.querySelector('[data-ai-modal-cancel]');
     const aiBackdrop = aiModal?.querySelector('[data-ai-modal-close]');
     const aiPromptOpenButton = document.getElementById('ai-prompt-open');
@@ -177,6 +178,61 @@
       }
       aiStatus.hidden = hidden || message.length === 0;
       aiStatus.textContent = message;
+    };
+    const updateAiCopyButtonState = () => {
+      if (!(aiCopyButton instanceof HTMLButtonElement)) {
+        return;
+      }
+      const draft = aiResult instanceof HTMLTextAreaElement ? aiResult.value.trim() : '';
+      aiCopyButton.disabled = draft.length === 0;
+    };
+
+    const copyTextToClipboard = async (text) => {
+      const normalizedText = text.trim();
+      if (normalizedText.length === 0) {
+        throw new Error('コピーする下書きがありません。');
+      }
+
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(normalizedText);
+        return;
+      }
+
+      const textarea = document.createElement('textarea');
+      textarea.value = normalizedText;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.top = '-9999px';
+      document.body.append(textarea);
+      textarea.select();
+      const copied = document.execCommand('copy');
+      textarea.remove();
+
+      if (!copied) {
+        throw new Error('クリップボードへのコピーに失敗しました。');
+      }
+    };
+
+    const copyAiDraft = async (text, button = null) => {
+      const originalText = button instanceof HTMLButtonElement ? button.textContent : null;
+      try {
+        await copyTextToClipboard(text);
+        if (button instanceof HTMLButtonElement) {
+          button.textContent = 'コピー済み';
+          window.setTimeout(() => {
+            button.textContent = originalText || 'コピー';
+          }, 1600);
+        }
+        setAiStatus('下書きをクリップボードにコピーしました。');
+      } catch (error) {
+        if (button instanceof HTMLButtonElement) {
+          button.textContent = 'コピー失敗';
+          window.setTimeout(() => {
+            button.textContent = originalText || 'コピー';
+          }, 1600);
+        }
+        setAiStatus(error instanceof Error ? error.message : 'クリップボードへのコピーに失敗しました。');
+      }
     };
     const updateAiModelCard = () => {
       if (!(aiModelSelect instanceof HTMLSelectElement) || !aiModelCard) {
@@ -279,6 +335,7 @@
       if (aiResult instanceof HTMLTextAreaElement) {
         aiResult.value = '';
       }
+      updateAiCopyButtonState();
       if (aiGenerateButton instanceof HTMLButtonElement) {
         aiGenerateButton.disabled = false;
       }
@@ -338,7 +395,8 @@
         lineUserId: (button.dataset.lineUserId || '').trim(),
         lineDisplayName: (button.dataset.lineDisplayName || '').trim(),
         selectedLstepUserId: (button.dataset.selectedLstepUserId || '').trim(),
-        aiModel: (button.dataset.aiModel || '').trim()
+        aiModel: (button.dataset.aiModel || '').trim(),
+        aiDraft: (button.dataset.aiDraft || '').trim()
       };
 
       if (!Number.isFinite(currentAiContact.contactId) || currentAiContact.contactId <= 0 || currentAiContact.lineUserId.length === 0) {
@@ -356,7 +414,7 @@
       }
       updateAiModelCard();
       if (aiResult instanceof HTMLTextAreaElement) {
-        aiResult.value = '';
+        aiResult.value = currentAiContact.aiDraft;
       }
       if (aiGenerateButton instanceof HTMLButtonElement) {
         aiGenerateButton.disabled = true;
@@ -428,6 +486,7 @@
         if (aiResult instanceof HTMLTextAreaElement) {
           aiResult.value = result.generated_message || '';
         }
+        updateAiCopyButtonState();
         setAiStatus('生成した下書きを保存しました。');
         await refreshFilteredResults();
       } catch (error) {
@@ -608,6 +667,10 @@
         ? event.target.closest('.js-ai-button')
         : null;
 
+      const copyButton = event.target instanceof Element
+        ? event.target.closest('.js-ai-copy-button')
+        : null;
+
       const completeButton = event.target instanceof Element
         ? event.target.closest('.js-complete-button')
         : null;
@@ -651,6 +714,11 @@
         return;
       }
 
+      if (copyButton instanceof HTMLButtonElement) {
+        copyAiDraft(copyButton.dataset.aiDraft || '', copyButton);
+        return;
+      }
+      
       if (!(completeButton instanceof HTMLButtonElement)) {
         return;
       }
@@ -763,5 +831,9 @@
     aiModelSelect?.addEventListener('change', updateAiModelCard);
     updateAiModelCard();
     aiGenerateButton?.addEventListener('click', generateAiMessage);
+    aiCopyButton?.addEventListener('click', () => {
+      const draft = aiResult instanceof HTMLTextAreaElement ? aiResult.value : '';
+      copyAiDraft(draft, aiCopyButton);
+    });
   });
 })();

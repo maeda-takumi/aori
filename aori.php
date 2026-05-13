@@ -58,7 +58,7 @@ $geminiModelOptions = [
         'label' => '🏆 Gemini 3.1 Flash-Lite Preview',
         'short_label' => 'Gemini 3.1 Flash-Lite Preview',
         'badge' => '性能最優先',
-        'limit' => '1日上限: 要AI Studio確認（Preview）',
+        'limit' => '1日上限: 500',
         'feature' => '3モデル中ベンチマーク最上位。高速・低遅延で進捗確認文の品質も狙いやすいが、Previewのため挙動や上限が変わる可能性があります。',
         'rank' => '一番優秀',
     ],
@@ -66,7 +66,7 @@ $geminiModelOptions = [
         'label' => '⚖️ Gemini 2.5 Flash',
         'short_label' => 'Gemini 2.5 Flash',
         'badge' => '安定・バランス',
-        'limit' => '無料枠: 250回/日・10回/分',
+        'limit' => '1日上限: 20',
         'feature' => '安定版で、品質・速度・使いやすさのバランスが良いモデル。Previewを避けたい通常運用に向いています。',
         'rank' => '安定運用',
     ],
@@ -74,7 +74,7 @@ $geminiModelOptions = [
         'label' => '⚡ Gemini 2.5 Flash-Lite',
         'short_label' => 'Gemini 2.5 Flash-Lite',
         'badge' => '上限多め・低コスト',
-        'limit' => '無料枠: 1,000回/日・15回/分',
+        'limit' => '1日上限: 20',
         'feature' => '3モデル中もっとも軽量で、日次上限に余裕があります。大量生成や簡単な文面作成を優先するときに向いています。',
         'rank' => '大量生成',
     ],
@@ -920,96 +920,118 @@ require __DIR__ . '/header.php';
     <?php else: ?>
       <ul class="aori-list">
         <?php foreach ($rows as $row): ?>
-          <li class="aori-item glass">
-            <div class="aori-meta">
-              <?php
-                $savedLabels = [];
-                if (!empty($row['aori_labels'])) {
-                    $savedLabels = array_values(array_filter(array_map('trim', explode('|', (string)$row['aori_labels']))));
-                }
-              ?>
-              <strong class="aori-name-row">
-                <?= htmlspecialchars((string)($row['line_display_name'] ?: '名称未設定'), ENT_QUOTES, 'UTF-8'); ?>
+          <li class="aori-frame glass">
+            <div class="aori-item">
+              <div class="aori-meta">
+                <?php
+                  $savedLabels = [];
+                  if (!empty($row['aori_labels'])) {
+                      $savedLabels = array_values(array_filter(array_map('trim', explode('|', (string)$row['aori_labels']))));
+                  }
+                ?>
+                <strong class="aori-name-row">
+                  <?= htmlspecialchars((string)($row['line_display_name'] ?: '名称未設定'), ENT_QUOTES, 'UTF-8'); ?>
+                  <button
+                    class="aori-edit-icon-btn"
+                    type="button"
+                    data-aori-edit-button
+                    data-line-user-id="<?= htmlspecialchars((string)($row['line_user_id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                    data-current-labels="<?= htmlspecialchars(json_encode($savedLabels, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>"
+                    data-current-curriculum-status="<?= htmlspecialchars((string)($row['curriculum_status'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                    aria-label="状態ラベルを編集"
+                  >
+                    <img src="img/edit2.png" alt="編集">
+                  </button>
+                </strong>
+                <?php if (!empty($savedLabels)): ?>
+                  <div class="aori-label-badges">
+                    <?php foreach ($savedLabels as $savedLabel): ?>
+                      <span class="aori-label-badge aori-label-<?= abs(crc32($savedLabel)) % 8; ?>"><?= htmlspecialchars($savedLabel, ENT_QUOTES, 'UTF-8'); ?></span>
+                    <?php endforeach; ?>
+                  </div>
+                <?php endif; ?>
+                <?php if (!empty($row['curriculum_status'])): ?>
+                  <div class="aori-label-badges">
+                    <span class="aori-label-badge aori-label-curriculum"><?= htmlspecialchars((string)$row['curriculum_status'], ENT_QUOTES, 'UTF-8'); ?></span>
+                  </div>
+                <?php endif; ?>
+                <span>システム表示名: <?= htmlspecialchars((string)($row['system_display_name'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
+                <span>対応マーク: <?= htmlspecialchars((string)($row['support_mark'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
+                <span>最終受信日時: <?= htmlspecialchars((string)($row['last_message_received_at'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
+                <span>前回煽り送信日時: <?= htmlspecialchars((string)((isset($row['send_at']) && $row['send_at'] !== null && $row['send_at'] !== '0000-00-00 00:00:00') ? $row['send_at'] : ''), ENT_QUOTES, 'UTF-8'); ?></span>
+                <span class="aori-owner-row">担当者:
+                  <?php if ((int)($row['tag_hirabayashi'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-hirabayashi">平林</span><?php endif; ?>
+                  <?php if ((int)($row['tag_shimazaki'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-shimazaki">島崎</span><?php endif; ?>
+                  <?php if ((int)($row['tag_manpuku'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-manpuku">万福</span><?php endif; ?>
+                  <?php if ((int)($row['tag_hirabayashi'] ?? 0) !== 1 && (int)($row['tag_shimazaki'] ?? 0) !== 1 && (int)($row['tag_manpuku'] ?? 0) !== 1): ?>-<?php endif; ?>
+                </span>
+                <span class="aori-memo">メモ: <?= nl2br(htmlspecialchars((string)($row['lmessage_personal_memo'] ?? '-'), ENT_QUOTES, 'UTF-8')); ?></span>
+              </div>
+
+              <div class="aori-actions">
+                <?php if (!empty($row['chat_url'])): ?>
+                  <!-- <a class="btn aori-link" href="<?= htmlspecialchars((string)$row['chat_url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">チャットを開く</a> -->
+                <?php elseif (!empty($row['friend_id'])): ?>
+                  <!-- <a class="btn aori-link" href="https://step.lme.jp/basic/chat-v3?friend_id=<?= urlencode((string)$row['friend_id']); ?>" target="_blank" rel="noopener noreferrer">チャットを開く</a> -->
+                <?php endif; ?>
+
                 <button
-                  class="aori-edit-icon-btn"
+                  class="btn js-chat-button"
                   type="button"
-                  data-aori-edit-button
-                  data-line-user-id="<?= htmlspecialchars((string)($row['line_user_id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
-                  data-current-labels="<?= htmlspecialchars(json_encode($savedLabels, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>"
-                  data-current-curriculum-status="<?= htmlspecialchars((string)($row['curriculum_status'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
-                  aria-label="状態ラベルを編集"
+                  data-friend-id="<?= htmlspecialchars((string)($row['friend_id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                 >
-                  <img src="img/edit2.png" alt="編集">
+                  チャット
                 </button>
-              </strong>
-              <?php if (!empty($savedLabels)): ?>
-                <div class="aori-label-badges">
-                  <?php foreach ($savedLabels as $savedLabel): ?>
-                    <span class="aori-label-badge aori-label-<?= abs(crc32($savedLabel)) % 8; ?>"><?= htmlspecialchars($savedLabel, ENT_QUOTES, 'UTF-8'); ?></span>
-                  <?php endforeach; ?>
-                </div>
-              <?php endif; ?>
-              <?php if (!empty($row['curriculum_status'])): ?>
-                <div class="aori-label-badges">
-                  <span class="aori-label-badge aori-label-curriculum"><?= htmlspecialchars((string)$row['curriculum_status'], ENT_QUOTES, 'UTF-8'); ?></span>
-                </div>
-              <?php endif; ?>
-              <?php if (!empty($row['ai_generated_message'])): ?>
-                <div class="aori-ai-draft">
-                  <span class="aori-ai-draft__meta">
-                    AI下書き<?= !empty($row['ai_generated_at']) ? '（' . htmlspecialchars((string)$row['ai_generated_at'], ENT_QUOTES, 'UTF-8') . '）' : ''; ?>
-                    <?= !empty($row['ai_model']) ? ' / ' . htmlspecialchars((string)($geminiModelOptions[(string)$row['ai_model']]['short_label'] ?? $row['ai_model']), ENT_QUOTES, 'UTF-8') : ''; ?>
-                  </span>
-                  <p><?= nl2br(htmlspecialchars((string)$row['ai_generated_message'], ENT_QUOTES, 'UTF-8')); ?></p>
-                </div>
-              <?php endif; ?>
-              <span>システム表示名: <?= htmlspecialchars((string)($row['system_display_name'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
-              <span>対応マーク: <?= htmlspecialchars((string)($row['support_mark'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
-              <span>最終受信日時: <?= htmlspecialchars((string)($row['last_message_received_at'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
-              <span>前回煽り送信日時: <?= htmlspecialchars((string)((isset($row['send_at']) && $row['send_at'] !== null && $row['send_at'] !== '0000-00-00 00:00:00') ? $row['send_at'] : ''), ENT_QUOTES, 'UTF-8'); ?></span>
-              <span class="aori-owner-row">担当者:
-                <?php if ((int)($row['tag_hirabayashi'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-hirabayashi">平林</span><?php endif; ?>
-                <?php if ((int)($row['tag_shimazaki'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-shimazaki">島崎</span><?php endif; ?>
-                <?php if ((int)($row['tag_manpuku'] ?? 0) === 1): ?><span class="aori-owner-badge aori-owner-manpuku">万福</span><?php endif; ?>
-                <?php if ((int)($row['tag_hirabayashi'] ?? 0) !== 1 && (int)($row['tag_shimazaki'] ?? 0) !== 1 && (int)($row['tag_manpuku'] ?? 0) !== 1): ?>-<?php endif; ?>
-              </span>
-              <span class="aori-memo">メモ: <?= nl2br(htmlspecialchars((string)($row['lmessage_personal_memo'] ?? '-'), ENT_QUOTES, 'UTF-8')); ?></span>
+
+                <button
+                  class="btn js-complete-button"
+                  type="button"
+                  data-content-id="<?= (int)$row['id']; ?>"
+                >
+                  完了
+                </button>
+              </div>
             </div>
 
-            <div class="aori-actions">
-              <?php if (!empty($row['chat_url'])): ?>
-                <!-- <a class="btn aori-link" href="<?= htmlspecialchars((string)$row['chat_url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">チャットを開く</a> -->
-              <?php elseif (!empty($row['friend_id'])): ?>
-                <!-- <a class="btn aori-link" href="https://step.lme.jp/basic/chat-v3?friend_id=<?= urlencode((string)$row['friend_id']); ?>" target="_blank" rel="noopener noreferrer">チャットを開く</a> -->
-              <?php endif; ?>
-
-              <button
-                class="btn js-chat-button"
-                type="button"
-                data-friend-id="<?= htmlspecialchars((string)($row['friend_id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
-              >
-                チャット
-              </button>
-
-              <button
-                class="btn js-ai-button"
-                type="button"
-                data-contact-id="<?= (int)$row['id']; ?>"
-                data-line-user-id="<?= htmlspecialchars((string)($row['line_user_id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
-                data-line-display-name="<?= htmlspecialchars((string)($row['line_display_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
-                data-selected-lstep-user-id="<?= htmlspecialchars((string)($row['lstep_user_id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
-                data-ai-model="<?= htmlspecialchars((string)($row['ai_model'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
-              >
-                <?= !empty($row['ai_generated_message']) ? 'AI再生成' : 'AI生成'; ?>
-              </button>
-
-              <button
-                class="btn js-complete-button"
-                type="button"
-                data-content-id="<?= (int)$row['id']; ?>"
-              >
-                完了
-              </button>
+            <div class="aori-ai-panel">
+              <div class="aori-ai-panel__header">
+                <span class="aori-ai-panel__title">AI下書き</span>
+                <?php if (!empty($row['ai_generated_message'])): ?>
+                  <span class="aori-ai-draft__meta">
+                    <?= !empty($row['ai_generated_at']) ? htmlspecialchars((string)$row['ai_generated_at'], ENT_QUOTES, 'UTF-8') : ''; ?>
+                    <?= !empty($row['ai_model']) ? ' / ' . htmlspecialchars((string)($geminiModelOptions[(string)$row['ai_model']] ?? $row['ai_model']), ENT_QUOTES, 'UTF-8') : ''; ?>
+                  </span>
+                <?php endif; ?>
+              </div>
+              <div class="aori-ai-draft">
+                <?php if (!empty($row['ai_generated_message'])): ?>
+                  <p><?= nl2br(htmlspecialchars((string)$row['ai_generated_message'], ENT_QUOTES, 'UTF-8')); ?></p>
+                <?php else: ?>
+                  <p class="aori-ai-draft__empty">AI下書きはまだありません。</p>
+                <?php endif; ?>
+              </div>
+              <div class="aori-ai-panel__actions">
+                <button
+                  class="btn aori-copy-btn js-ai-copy-button"
+                  type="button"
+                  data-ai-draft="<?= htmlspecialchars((string)($row['ai_generated_message'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                  <?= empty($row['ai_generated_message']) ? 'disabled' : ''; ?>
+                >
+                  コピー
+                </button>
+                <button
+                  class="btn js-ai-button"
+                  type="button"
+                  data-contact-id="<?= (int)$row['id']; ?>"
+                  data-line-user-id="<?= htmlspecialchars((string)($row['line_user_id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                  data-line-display-name="<?= htmlspecialchars((string)($row['line_display_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                  data-selected-lstep-user-id="<?= htmlspecialchars((string)($row['lstep_user_id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                  data-ai-model="<?= htmlspecialchars((string)($row['ai_model'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                  data-ai-draft="<?= htmlspecialchars((string)($row['ai_generated_message'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                >
+                  <?= !empty($row['ai_generated_message']) ? 'AI再生成' : 'AI生成'; ?>
+                </button>
+              </div>
             </div>
           </li>
         <?php endforeach; ?>
@@ -1114,6 +1136,7 @@ require __DIR__ . '/header.php';
     </label>
     <div class="chat-modal__actions">
       <button type="button" class="btn chat-modal__cancel" data-ai-modal-cancel>キャンセル</button>
+      <button type="button" class="btn aori-copy-btn" id="aori-ai-copy" disabled>コピー</button>
       <button type="button" class="btn" id="aori-ai-generate">生成する</button>
     </div>
   </div>

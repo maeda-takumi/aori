@@ -278,7 +278,7 @@ body {
 
 .aori-item {
   border-radius: 16px;
-  padding: 14px;
+  /* padding: 14px; */
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -288,6 +288,8 @@ body {
 .aori-meta {
   display: grid;
   gap: 4px;
+  flex: 1;
+  min-width: 0;
 }
 
 .aori-name-row {
@@ -462,7 +464,8 @@ body {
     justify-items: stretch;
   }
 
-  .aori-actions .btn {
+  .aori-actions .btn,
+  .aori-ai-panel__actions .btn {
     width: 100%;
     text-align: center;
   }
@@ -686,18 +689,51 @@ body {
   .nav-links.is-open .import-icon-btn:nth-child(5) { transition-delay: 0.27s; }
 
 }
-.aori-ai-draft {
-  margin-top: 6px;
-  padding: 10px 12px;
+.aori-ai-panel {
+  min-width: 100%;
+  margin-top: 8px;
+  padding: 12px;
   border: 1px solid rgba(68, 138, 255, 0.24);
-  border-radius: 12px;
+
+  border-radius: 14px;
   background: rgba(227, 242, 253, 0.78);
   display: grid;
-  gap: 6px;
+  gap: 10px;
+}
+.aori-frame{
+    display: flex;
+    gap: 14px;
+    flex-direction: column;
+    border-radius: 18px;
+    padding: 25px;
+}
+.aori-ai-panel__header,
+.aori-ai-panel__actions {
+  display: flex;
+  align-items: center;
+  /* justify-content: space-between; */
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.aori-ai-panel__actions {
+  justify-content: end;
+}
+.aori-ai-panel__title {
+  color: #1565c0 !important;
+  font-weight: 800;
+}
+
+.aori-ai-draft {
+  padding: 10px 12px;
+  border: 1px solid rgba(68, 138, 255, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
 }
 
 .aori-ai-draft__meta {
   color: #1565c0 !important;
+  font-size: 0.84rem !important;
   font-weight: 700;
 }
 
@@ -705,6 +741,22 @@ body {
   margin: 0;
   color: var(--text);
   line-height: 1.6;
+}
+
+.aori-ai-draft__empty {
+  color: var(--muted) !important;
+}
+
+.aori-copy-btn {
+  background: rgba(31, 35, 64, 0.18);
+  color: var(--text);
+  box-shadow: none;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
 }
 
 .aori-ai-modal__dialog {
