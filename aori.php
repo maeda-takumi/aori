@@ -80,6 +80,19 @@ $geminiModelOptions = [
     ],
 ];
 
+function get_gemini_model_short_label(string $model, array $geminiModelOptions): string
+{
+    $modelInfo = $geminiModelOptions[$model] ?? null;
+    if (is_array($modelInfo)) {
+        return (string)($modelInfo['short_label'] ?? $model);
+    }
+
+    if (is_string($modelInfo)) {
+        return $modelInfo;
+    }
+
+    return $model;
+}
 function send_json_response(array $payload, int $statusCode = 200): void
 {
     http_response_code($statusCode);
@@ -999,7 +1012,7 @@ require __DIR__ . '/header.php';
                 <?php if (!empty($row['ai_generated_message'])): ?>
                   <span class="aori-ai-draft__meta">
                     <?= !empty($row['ai_generated_at']) ? htmlspecialchars((string)$row['ai_generated_at'], ENT_QUOTES, 'UTF-8') : ''; ?>
-                    <?= !empty($row['ai_model']) ? ' / ' . htmlspecialchars((string)($geminiModelOptions[(string)$row['ai_model']] ?? $row['ai_model']), ENT_QUOTES, 'UTF-8') : ''; ?>
+                    <?= !empty($row['ai_model']) ? ' / ' . htmlspecialchars(get_gemini_model_short_label((string)$row['ai_model'], $geminiModelOptions), ENT_QUOTES, 'UTF-8') : ''; ?>
                   </span>
                 <?php endif; ?>
               </div>
