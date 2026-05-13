@@ -51,7 +51,210 @@ $ownerOptions = [
     'hirabayashi' => '平林',
     'manpuku' => '万福',
     'shimazaki' => '島崎',
+    'hasegawa' => '長谷川',
 ];
+$geminiModelOptions = [
+    'gemini-3.1-flash-lite' => 'Gemini 3.1 Flash Lite',
+    'gemini-2.5-flash' => 'Gemini 2.5 Flash',
+    'gemini-2.5-flash-lite' => 'Gemini 2.5 Flash Lite',
+];
+
+function send_json_response(array $payload, int $statusCode = 200): void
+{
+    http_response_code($statusCode);
+    header('Content-Type: application/json; charset=UTF-8');
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+function get_lstep_pdo(): PDO
+{
+    $dbPath = __DIR__ . '/data/lstep_users.db';
+    if (!is_file($dbPath)) {
+        throw new RuntimeException('やり取りユーザDBが見つかりません。');
+    }
+
+    $sqlitePdo = new PDO('sqlite:' . $dbPath);
+    $sqlitePdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $sqlitePdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+
+    return $sqlitePdo;
+}
+
+function fetch_lstep_user_options(string $lineDisplayName = ''): array
+{
+    $sqlitePdo = get_lstep_pdo();
+    $stmt = $sqlitePdo->query(
+        'SELECT
+            users.id,
+            users.line_name,
+            users.support,
+            users.href,
+            users.new_message_date,
+            COUNT(messages.id) AS message_count,
+            MAX(messages.time_sent) AS last_message_at
+         FROM users
+         LEFT JOIN messages ON messages.user_id = users.id
+         GROUP BY users.id, users.line_name, users.support, users.href, users.new_message_date
+         ORDER BY CASE WHEN users.line_name = ' . $sqlitePdo->quote($lineDisplayName) . ' THEN 0 ELSE 1 END,
+                  users.line_name COLLATE NOCASE ASC,
+                  users.id ASC'
+    );
+    $users = $stmt->fetchAll();
+
+    $matchedUserIds = [];
+    foreach ($users as &$user) {
+        $isExactMatch = $lineDisplayName !== '' && (string)($user['line_name'] ?? '') === $lineDisplayName;
+        $user['id'] = (int)$user['id'];
+        $user['message_count'] = (int)$user['message_count'];
+        $user['is_exact_match'] = $isExactMatch;
+        if ($isExactMatch) {
+            $matchedUserIds[] = (int)$user['id'];
+        }
+    }
+    unset($user);
+
+    return [$users, $matchedUserIds];
+}
+
+function fetch_lstep_conversation(int $lstepUserId): array
+{
+    $sqlitePdo = get_lstep_pdo();
+    $userStmt = $sqlitePdo->prepare('SELECT id, line_name, support, href, new_message_date FROM users WHERE id = :id');
+    $userStmt->execute(['id' => $lstepUserId]);
+    $user = $userStmt->fetch();
+    if ($user === false) {
+        throw new RuntimeException('選択されたやり取りユーザが見つかりません。');
+    }
+
+    $messageStmt = $sqlitePdo->prepare(
+        'SELECT id, sender_name, sender, message, time_sent
+         FROM messages
+         WHERE user_id = :user_id
+         ORDER BY time_sent ASC, id ASC'
+    );
+    $messageStmt->execute(['user_id' => $lstepUserId]);
+    $messages = $messageStmt->fetchAll();
+
+    return [$user, $messages];
+}
+
+function build_conversation_text(array $messages, int $maxChars = 16000): string
+{
+    $lines = [];
+    foreach ($messages as $message) {
+        $sender = (string)($message['sender'] ?? '');
+        $senderLabel = $sender === 'you' ? 'ユーザ' : ($sender === 'me' ? '担当者' : '不明');
+        $senderName = trim((string)($message['sender_name'] ?? ''));
+        if ($senderName !== '') {
+            $senderLabel .= '(' . $senderName . ')';
+        }
+        $text = trim((string)($message['message'] ?? ''));
+        if ($text === '') {
+            continue;
+        }
+        $lines[] = '[' . (string)($message['time_sent'] ?? '') . '] ' . $senderLabel . ': ' . $text;
+    }
+
+    $result = '';
+    for ($i = count($lines) - 1; $i >= 0; $i--) {
+        $candidate = $lines[$i] . "\n" . $result;
+        if (mb_strlen($candidate) > $maxChars) {
+            break;
+        }
+        $result = $candidate;
+    }
+
+    return trim($result);
+}
+
+function call_gemini_api(string $model, string $prompt): string
+{
+    if (!defined('GEMINI_API_KEY') || trim((string)GEMINI_API_KEY) === '') {
+        throw new RuntimeException('Gemini APIキーが未設定です。config.phpのGEMINI_API_KEYを設定してください。');
+    }
+
+    if (!function_exists('curl_init')) {
+        throw new RuntimeException('PHP cURL拡張が有効ではありません。');
+    }
+
+    $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent?key=' . rawurlencode((string)GEMINI_API_KEY);
+    $payload = [
+        'contents' => [
+            [
+                'role' => 'user',
+                'parts' => [
+                    ['text' => $prompt],
+                ],
+            ],
+        ],
+        'generationConfig' => [
+            'temperature' => 0.7,
+            'topP' => 0.9,
+            'maxOutputTokens' => 512,
+        ],
+    ];
+
+    $ch = curl_init($url);
+    if ($ch === false) {
+        throw new RuntimeException('Gemini API呼び出しの初期化に失敗しました。');
+    }
+
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 45,
+    ]);
+
+    $responseBody = curl_exec($ch);
+    $curlError = curl_error($ch);
+    $httpCode = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+
+    if ($responseBody === false || $curlError !== '') {
+        throw new RuntimeException('Gemini APIへの接続に失敗しました。');
+    }
+
+    $decoded = json_decode((string)$responseBody, true);
+    if ($httpCode < 200 || $httpCode >= 300) {
+        $apiMessage = is_array($decoded) ? (string)($decoded['error']['message'] ?? '') : '';
+        throw new RuntimeException($apiMessage !== '' ? 'Gemini APIエラー: ' . $apiMessage : 'Gemini APIエラーが発生しました。');
+    }
+
+    $text = trim((string)($decoded['candidates'][0]['content']['parts'][0]['text'] ?? ''));
+    if ($text === '') {
+        throw new RuntimeException('Gemini APIから生成文が返りませんでした。');
+    }
+
+    return $text;
+}
+
+function build_ai_prompt(array $contact, array $lstepUser, array $messages): string
+{
+    $conversationText = build_conversation_text($messages);
+    if ($conversationText === '') {
+        $conversationText = '会話ログがありません。';
+    }
+
+    return "あなたはLINEで学習・作業進捗をサポートする担当者です。\n"
+        . "以下の情報と会話ログから、ユーザの直近状況に合わせた自然な進捗確認メッセージを1通だけ作成してください。\n"
+        . "条件:\n"
+        . "- 日本語で、LINEにそのまま貼り付けられる文面にする\n"
+        . "- 相手を責めず、前向きで返信しやすい文面にする\n"
+        . "- 直近でユーザが行っていること、困っていること、止まっている箇所があれば具体的に触れる\n"
+        . "- 180文字以内を目安にする\n"
+        . "- 件名、説明、候補リスト、引用符は付けず、送信文のみを返す\n\n"
+        . "【煽り一覧側ユーザ】" . (string)($contact['line_display_name'] ?? '') . "\n"
+        . "【システム表示名】" . (string)($contact['system_display_name'] ?? '') . "\n"
+        . "【対応マーク】" . (string)($contact['support_mark'] ?? '') . "\n"
+        . "【状態ラベル】" . (string)($contact['aori_labels'] ?? '') . "\n"
+        . "【カリキュラム状況】" . (string)($contact['curriculum_status'] ?? '') . "\n"
+        . "【やり取りユーザ】" . (string)($lstepUser['line_name'] ?? '') . "\n"
+        . "【やり取り担当】" . (string)($lstepUser['support'] ?? '') . "\n\n"
+        . "【会話ログ】\n" . $conversationText;
+}
 
 $selectedOwner = $_GET['owner_filter'] ?? 'all';
 if (!array_key_exists($selectedOwner, $ownerOptions)) {
@@ -190,6 +393,27 @@ try {
             $pdo->exec('ALTER TABLE contact_management ADD COLUMN curriculum_status VARCHAR(255) NULL AFTER aori_labels');
             $messages[] = 'contact_managementテーブルにcurriculum_statusカラムを追加しました。';
         }
+        $lstepUserIdColumnStmt = $pdo->query("SHOW COLUMNS FROM contact_management LIKE 'lstep_user_id'");
+        if ($lstepUserIdColumnStmt->fetch() === false) {
+            $pdo->exec('ALTER TABLE contact_management ADD COLUMN lstep_user_id INT NULL AFTER curriculum_status');
+            $messages[] = 'contact_managementテーブルにlstep_user_idカラムを追加しました。';
+        }
+        $aiModelColumnStmt = $pdo->query("SHOW COLUMNS FROM contact_management LIKE 'ai_model'");
+        if ($aiModelColumnStmt->fetch() === false) {
+            $pdo->exec('ALTER TABLE contact_management ADD COLUMN ai_model VARCHAR(128) NULL AFTER lstep_user_id');
+            $messages[] = 'contact_managementテーブルにai_modelカラムを追加しました。';
+        }
+        $aiGeneratedMessageColumnStmt = $pdo->query("SHOW COLUMNS FROM contact_management LIKE 'ai_generated_message'");
+        if ($aiGeneratedMessageColumnStmt->fetch() === false) {
+            $pdo->exec('ALTER TABLE contact_management ADD COLUMN ai_generated_message TEXT NULL AFTER ai_model');
+            $messages[] = 'contact_managementテーブルにai_generated_messageカラムを追加しました。';
+        }
+        $aiGeneratedAtColumnStmt = $pdo->query("SHOW COLUMNS FROM contact_management LIKE 'ai_generated_at'");
+        if ($aiGeneratedAtColumnStmt->fetch() === false) {
+            $pdo->exec('ALTER TABLE contact_management ADD COLUMN ai_generated_at DATETIME NULL AFTER ai_generated_message');
+            $messages[] = 'contact_managementテーブルにai_generated_atカラムを追加しました。';
+        }
+
 
         if ($hasContactId) {
             $contactIdUniqueStmt = $pdo->query("SHOW INDEX FROM contact_management WHERE Key_name = 'uniq_contact_id'");
@@ -205,6 +429,27 @@ try {
             }
         }
     }
+    $aiLogTableExists = $pdo->query("SHOW TABLES LIKE 'aori_ai_message_logs'")->fetch() !== false;
+    if (!$aiLogTableExists) {
+        $pdo->exec(
+            'CREATE TABLE aori_ai_message_logs (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                contact_id INT UNSIGNED NOT NULL,
+                line_user_id VARCHAR(64) NOT NULL,
+                lstep_user_id INT NOT NULL,
+                lstep_line_name VARCHAR(255) NULL,
+                model VARCHAR(128) NOT NULL,
+                prompt MEDIUMTEXT NULL,
+                generated_message TEXT NOT NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_aori_ai_logs_contact_created (contact_id, created_at),
+                INDEX idx_aori_ai_logs_line_user_created (line_user_id, created_at),
+                INDEX idx_aori_ai_logs_lstep_user_created (lstep_user_id, created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+        );
+        $messages[] = 'aori_ai_message_logsテーブルを作成しました。';
+    }
+
     $supportMarkStmt = $pdo->query(
         "SELECT DISTINCT support_mark
         FROM contacts
@@ -366,6 +611,123 @@ try {
         ], JSON_UNESCAPED_UNICODE);
         exit;
     }
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && (($_POST['action'] ?? '') === 'list_lstep_users')) {
+        $lineDisplayName = trim((string)($_POST['line_display_name'] ?? ''));
+        try {
+            [$lstepUsers, $matchedUserIds] = fetch_lstep_user_options($lineDisplayName);
+            send_json_response([
+                'status' => 'ok',
+                'users' => $lstepUsers,
+                'matched_user_ids' => $matchedUserIds,
+            ]);
+        } catch (Throwable $e) {
+            send_json_response([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && (($_POST['action'] ?? '') === 'generate_ai_message')) {
+        $contactId = filter_input(INPUT_POST, 'contact_id', FILTER_VALIDATE_INT);
+        $lineUserId = trim((string)($_POST['line_user_id'] ?? ''));
+        $lstepUserId = filter_input(INPUT_POST, 'lstep_user_id', FILTER_VALIDATE_INT);
+        $model = trim((string)($_POST['model'] ?? ''));
+
+        if ($contactId === false || $contactId === null || $contactId <= 0) {
+            send_json_response(['status' => 'error', 'message' => '更新対象のIDが不正です。'], 400);
+        }
+        if ($lineUserId === '') {
+            send_json_response(['status' => 'error', 'message' => 'LINEユーザーIDが不正です。'], 400);
+        }
+        if ($lstepUserId === false || $lstepUserId === null || $lstepUserId <= 0) {
+            send_json_response(['status' => 'error', 'message' => 'やり取りユーザを選択してください。'], 400);
+        }
+        if (!array_key_exists($model, $geminiModelOptions)) {
+            send_json_response(['status' => 'error', 'message' => 'Geminiモデルが不正です。'], 400);
+        }
+
+        try {
+            $contactStmt = $pdo->prepare(
+                'SELECT
+                    contacts.id,
+                    contacts.line_user_id,
+                    contacts.line_display_name,
+                    contacts.system_display_name,
+                    contacts.support_mark,
+                    contacts.lmessage_personal_memo,
+                    cm.aori_labels,
+                    cm.curriculum_status
+                 FROM contacts
+                 LEFT JOIN contact_management cm ON cm.line_user_id = contacts.line_user_id
+                 WHERE contacts.id = :id AND contacts.line_user_id = :line_user_id'
+            );
+            $contactStmt->execute([
+                'id' => $contactId,
+                'line_user_id' => $lineUserId,
+            ]);
+            $contact = $contactStmt->fetch();
+            if ($contact === false) {
+                send_json_response(['status' => 'error', 'message' => '対象データが見つかりません。'], 404);
+            }
+
+            [$lstepUser, $conversationMessages] = fetch_lstep_conversation($lstepUserId);
+            $prompt = build_ai_prompt($contact, $lstepUser, $conversationMessages);
+            $generatedMessage = call_gemini_api($model, $prompt);
+
+            $pdo->beginTransaction();
+            $upsertAiStmt = $pdo->prepare(
+                'INSERT INTO contact_management (line_user_id, lstep_user_id, ai_model, ai_generated_message, ai_generated_at, created_at, updated_at)
+                 VALUES (:line_user_id, :lstep_user_id, :ai_model, :ai_generated_message, NOW(), NOW(), NOW())
+                 ON DUPLICATE KEY UPDATE
+                 lstep_user_id = VALUES(lstep_user_id),
+                 ai_model = VALUES(ai_model),
+                 ai_generated_message = VALUES(ai_generated_message),
+                 ai_generated_at = VALUES(ai_generated_at),
+                 updated_at = NOW()'
+            );
+            $upsertAiStmt->execute([
+                'line_user_id' => $lineUserId,
+                'lstep_user_id' => $lstepUserId,
+                'ai_model' => $model,
+                'ai_generated_message' => $generatedMessage,
+            ]);
+
+            $insertAiLogStmt = $pdo->prepare(
+                'INSERT INTO aori_ai_message_logs (contact_id, line_user_id, lstep_user_id, lstep_line_name, model, prompt, generated_message, created_at)
+                 VALUES (:contact_id, :line_user_id, :lstep_user_id, :lstep_line_name, :model, :prompt, :generated_message, NOW())'
+            );
+            $insertAiLogStmt->execute([
+                'contact_id' => $contactId,
+                'line_user_id' => $lineUserId,
+                'lstep_user_id' => $lstepUserId,
+                'lstep_line_name' => (string)($lstepUser['line_name'] ?? ''),
+                'model' => $model,
+                'prompt' => $prompt,
+                'generated_message' => $generatedMessage,
+            ]);
+            $pdo->commit();
+
+            send_json_response([
+                'status' => 'ok',
+                'message' => 'AIメッセージを生成しました。',
+                'generated_message' => $generatedMessage,
+                'model' => $model,
+                'model_label' => $geminiModelOptions[$model],
+                'lstep_user_id' => $lstepUserId,
+                'lstep_line_name' => (string)($lstepUser['line_name'] ?? ''),
+            ]);
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            send_json_response([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     $conditions = [];
     $params = [];
 
@@ -434,7 +796,11 @@ try {
             contacts.chat_url,
             contacts.friend_id,
             cm.aori_labels,
-            cm.curriculum_status
+            cm.curriculum_status,
+            cm.lstep_user_id,
+            cm.ai_model,
+            cm.ai_generated_message,
+            cm.ai_generated_at
         FROM contacts
         LEFT JOIN contact_management cm ON cm.line_user_id = contacts.line_user_id";
 
@@ -554,6 +920,15 @@ require __DIR__ . '/header.php';
                   <span class="aori-label-badge aori-label-curriculum"><?= htmlspecialchars((string)$row['curriculum_status'], ENT_QUOTES, 'UTF-8'); ?></span>
                 </div>
               <?php endif; ?>
+              <?php if (!empty($row['ai_generated_message'])): ?>
+                <div class="aori-ai-draft">
+                  <span class="aori-ai-draft__meta">
+                    AI下書き<?= !empty($row['ai_generated_at']) ? '（' . htmlspecialchars((string)$row['ai_generated_at'], ENT_QUOTES, 'UTF-8') . '）' : ''; ?>
+                    <?= !empty($row['ai_model']) ? ' / ' . htmlspecialchars((string)($geminiModelOptions[(string)$row['ai_model']] ?? $row['ai_model']), ENT_QUOTES, 'UTF-8') : ''; ?>
+                  </span>
+                  <p><?= nl2br(htmlspecialchars((string)$row['ai_generated_message'], ENT_QUOTES, 'UTF-8')); ?></p>
+                </div>
+              <?php endif; ?>
               <span>システム表示名: <?= htmlspecialchars((string)($row['system_display_name'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
               <span>対応マーク: <?= htmlspecialchars((string)($row['support_mark'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
               <span>最終受信日時: <?= htmlspecialchars((string)($row['last_message_received_at'] ?? '-'), ENT_QUOTES, 'UTF-8'); ?></span>
@@ -580,6 +955,18 @@ require __DIR__ . '/header.php';
                 data-friend-id="<?= htmlspecialchars((string)($row['friend_id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
               >
                 チャット
+              </button>
+
+              <button
+                class="btn js-ai-button"
+                type="button"
+                data-contact-id="<?= (int)$row['id']; ?>"
+                data-line-user-id="<?= htmlspecialchars((string)($row['line_user_id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                data-line-display-name="<?= htmlspecialchars((string)($row['line_display_name'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                data-selected-lstep-user-id="<?= htmlspecialchars((string)($row['lstep_user_id'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                data-ai-model="<?= htmlspecialchars((string)($row['ai_model'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+              >
+                <?= !empty($row['ai_generated_message']) ? 'AI再生成' : 'AI生成'; ?>
               </button>
 
               <button
@@ -652,6 +1039,37 @@ require __DIR__ . '/header.php';
     <div class="chat-modal__actions">
       <button type="button" class="btn chat-modal__cancel" data-aori-modal-cancel>キャンセル</button>
       <button type="button" class="btn" id="aori-label-save">保存</button>
+    </div>
+  </div>
+</div>
+<div id="aori-ai-modal" class="chat-modal" hidden>
+  <div class="chat-modal__backdrop" data-ai-modal-close></div>
+  <div class="chat-modal__dialog glass aori-ai-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="aori-ai-modal-title">
+    <h3 id="aori-ai-modal-title">AIメッセージ生成</h3>
+    <p class="aori-ai-modal__lead">Geminiモデルと参照するやり取りユーザを選択して、進捗確認メッセージの下書きを生成します。</p>
+    <form id="aori-ai-form" class="aori-ai-form">
+      <label class="aori-filter-field">
+        Geminiモデル
+        <select id="aori-ai-model" name="model">
+          <?php foreach ($geminiModelOptions as $modelValue => $modelLabel): ?>
+            <option value="<?= htmlspecialchars($modelValue, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($modelLabel, ENT_QUOTES, 'UTF-8'); ?></option>
+          <?php endforeach; ?>
+        </select>
+      </label>
+      <label class="aori-filter-field">
+        やり取りユーザ
+        <select id="aori-ai-lstep-user" name="lstep_user_id"></select>
+      </label>
+      <p id="aori-ai-match-note" class="aori-ai-match-note"></p>
+    </form>
+    <p id="aori-ai-modal-status" class="chat-modal__status" hidden></p>
+    <label class="aori-ai-result">
+      生成結果
+      <textarea id="aori-ai-result" rows="6" readonly></textarea>
+    </label>
+    <div class="chat-modal__actions">
+      <button type="button" class="btn chat-modal__cancel" data-ai-modal-cancel>キャンセル</button>
+      <button type="button" class="btn" id="aori-ai-generate">生成する</button>
     </div>
   </div>
 </div>

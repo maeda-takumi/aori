@@ -98,6 +98,17 @@
     let currentLabelLineUserId = null;
     let currentLabelMode = 'aori';
 
+    const aiModal = document.getElementById('aori-ai-modal');
+    const aiModelSelect = document.getElementById('aori-ai-model');
+    const aiUserSelect = document.getElementById('aori-ai-lstep-user');
+    const aiMatchNote = document.getElementById('aori-ai-match-note');
+    const aiStatus = document.getElementById('aori-ai-modal-status');
+    const aiResult = document.getElementById('aori-ai-result');
+    const aiGenerateButton = document.getElementById('aori-ai-generate');
+    const aiCancelButton = aiModal?.querySelector('[data-ai-modal-cancel]');
+    const aiBackdrop = aiModal?.querySelector('[data-ai-modal-close]');
+    let currentAiContact = null;
+
     const hideModal = () => {
       if (!chatModal) {
         return;
@@ -135,6 +146,182 @@
       }
       okButton.disabled = false;
       chatModal.hidden = false;
+    };
+
+    const setAiStatus = (message, hidden = false) => {
+      if (!aiStatus) {
+        return;
+      }
+      aiStatus.hidden = hidden || message.length === 0;
+      aiStatus.textContent = message;
+    };
+
+    const hideAiModal = () => {
+      if (!aiModal) {
+        return;
+      }
+      aiModal.hidden = true;
+      currentAiContact = null;
+      setAiStatus('', true);
+      if (aiResult instanceof HTMLTextAreaElement) {
+        aiResult.value = '';
+      }
+      if (aiGenerateButton instanceof HTMLButtonElement) {
+        aiGenerateButton.disabled = false;
+      }
+    };
+
+    const fetchLstepUsers = async (lineDisplayName) => {
+      const response = await fetch('aori.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+        },
+        body: new URLSearchParams({
+          action: 'list_lstep_users',
+          line_display_name: lineDisplayName
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok || result.status !== 'ok') {
+        throw new Error(result.message || 'やり取りユーザ一覧の取得に失敗しました。');
+      }
+      return result;
+    };
+
+    const populateAiUsers = (users, matchedUserIds, selectedLstepUserId) => {
+      if (!(aiUserSelect instanceof HTMLSelectElement)) {
+        return;
+      }
+      aiUserSelect.replaceChildren();
+
+      users.forEach((user) => {
+        const option = document.createElement('option');
+        option.value = String(user.id);
+        const matchPrefix = user.is_exact_match ? '【LINE名一致】' : '【全ユーザ】';
+        const messageCount = Number(user.message_count || 0);
+        const lastMessage = user.last_message_at ? ` / 最終: ${user.last_message_at}` : '';
+        const support = user.support ? ` / 担当: ${user.support}` : '';
+        option.textContent = `${matchPrefix} ${user.line_name || '名称未設定'}（ID:${user.id} / ${messageCount}件${lastMessage}${support}）`;
+        aiUserSelect.append(option);
+      });
+
+      const selectedId = String(selectedLstepUserId || '');
+      if (selectedId && users.some((user) => String(user.id) === selectedId)) {
+        aiUserSelect.value = selectedId;
+      } else if (matchedUserIds.length === 1) {
+        aiUserSelect.value = String(matchedUserIds[0]);
+      }
+    };
+
+    const showAiModal = async (button) => {
+      if (!aiModal || !(aiModelSelect instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      currentAiContact = {
+        contactId: Number(button.dataset.contactId || '0'),
+        lineUserId: (button.dataset.lineUserId || '').trim(),
+        lineDisplayName: (button.dataset.lineDisplayName || '').trim(),
+        selectedLstepUserId: (button.dataset.selectedLstepUserId || '').trim(),
+        aiModel: (button.dataset.aiModel || '').trim()
+      };
+
+      if (!Number.isFinite(currentAiContact.contactId) || currentAiContact.contactId <= 0 || currentAiContact.lineUserId.length === 0) {
+        showModal({
+          message: 'AI生成対象のIDが不正です。',
+          warning: true,
+          showCancel: false,
+          action: 'alert'
+        });
+        return;
+      }
+
+      if (currentAiContact.aiModel && Array.from(aiModelSelect.options).some((option) => option.value === currentAiContact.aiModel)) {
+        aiModelSelect.value = currentAiContact.aiModel;
+      }
+      if (aiResult instanceof HTMLTextAreaElement) {
+        aiResult.value = '';
+      }
+      if (aiGenerateButton instanceof HTMLButtonElement) {
+        aiGenerateButton.disabled = true;
+      }
+      setAiStatus('やり取りユーザ一覧を取得しています...');
+      aiModal.hidden = false;
+
+      try {
+        const result = await fetchLstepUsers(currentAiContact.lineDisplayName);
+        const users = Array.isArray(result.users) ? result.users : [];
+        const matchedUserIds = Array.isArray(result.matched_user_ids) ? result.matched_user_ids : [];
+        populateAiUsers(users, matchedUserIds, currentAiContact.selectedLstepUserId);
+
+        if (aiMatchNote) {
+          if (matchedUserIds.length === 1) {
+            aiMatchNote.textContent = 'LINE名が1件一致したため自動選択しました。必要に応じて変更できます。';
+          } else if (matchedUserIds.length > 1) {
+            aiMatchNote.textContent = `LINE名が${matchedUserIds.length}件一致しました。正しいやり取りユーザを選択してください。`;
+          } else {
+            aiMatchNote.textContent = 'LINE名の完全一致がありません。全やり取りユーザから選択してください。';
+          }
+        }
+        setAiStatus('', true);
+        if (aiGenerateButton instanceof HTMLButtonElement) {
+          aiGenerateButton.disabled = users.length === 0;
+        }
+      } catch (error) {
+        setAiStatus(error instanceof Error ? error.message : 'やり取りユーザ一覧の取得に失敗しました。');
+      }
+    };
+
+    const generateAiMessage = async () => {
+      if (!currentAiContact || !(aiModelSelect instanceof HTMLSelectElement) || !(aiUserSelect instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      const lstepUserId = aiUserSelect.value;
+      if (!lstepUserId) {
+        setAiStatus('やり取りユーザを選択してください。');
+        return;
+      }
+
+      if (aiGenerateButton instanceof HTMLButtonElement) {
+        aiGenerateButton.disabled = true;
+      }
+      setAiStatus('AIメッセージを生成しています...');
+
+      try {
+        const response = await fetch('aori.php', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+          },
+          body: new URLSearchParams({
+            action: 'generate_ai_message',
+            contact_id: String(currentAiContact.contactId),
+            line_user_id: currentAiContact.lineUserId,
+            lstep_user_id: lstepUserId,
+            model: aiModelSelect.value
+          })
+        });
+
+        const result = await response.json();
+        if (!response.ok || result.status !== 'ok') {
+          throw new Error(result.message || 'AIメッセージ生成に失敗しました。');
+        }
+
+        if (aiResult instanceof HTMLTextAreaElement) {
+          aiResult.value = result.generated_message || '';
+        }
+        setAiStatus('生成した下書きを保存しました。');
+        await refreshFilteredResults();
+      } catch (error) {
+        setAiStatus(error instanceof Error ? error.message : 'AIメッセージ生成に失敗しました。');
+      } finally {
+        if (aiGenerateButton instanceof HTMLButtonElement) {
+          aiGenerateButton.disabled = false;
+        }
+      }
     };
 
     const recordSendAt = async (contentId) => {
@@ -302,6 +489,10 @@
         ? event.target.closest('.js-chat-button')
         : null;
 
+      const aiButton = event.target instanceof Element
+        ? event.target.closest('.js-ai-button')
+        : null;
+
       const completeButton = event.target instanceof Element
         ? event.target.closest('.js-complete-button')
         : null;
@@ -337,6 +528,11 @@
 
         const chatUrl = `https://step.lme.jp/basic/chat-v3?friend_id=${encodeURIComponent(friendId)}`;
         window.open(chatUrl, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      if (aiButton instanceof HTMLButtonElement) {
+        showAiModal(aiButton);
         return;
       }
 
@@ -442,5 +638,8 @@
     });
     aoriLabelCancelButton?.addEventListener('click', hideAoriLabelModal);
     aoriLabelBackdrop?.addEventListener('click', hideAoriLabelModal);
+    aiCancelButton?.addEventListener('click', hideAiModal);
+    aiBackdrop?.addEventListener('click', hideAiModal);
+    aiGenerateButton?.addEventListener('click', generateAiMessage);
   });
 })();

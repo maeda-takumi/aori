@@ -683,4 +683,60 @@ body {
   .nav-links.is-open .import-icon-btn:nth-child(2) { transition-delay: 0.09s; }
   .nav-links.is-open .import-icon-btn:nth-child(3) { transition-delay: 0.15s; }
   .nav-links.is-open .import-icon-btn:nth-child(4) { transition-delay: 0.21s; }
+
+}
+.aori-ai-draft {
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(68, 138, 255, 0.24);
+  border-radius: 12px;
+  background: rgba(227, 242, 253, 0.78);
+  display: grid;
+  gap: 6px;
+}
+
+.aori-ai-draft__meta {
+  color: #1565c0 !important;
+  font-weight: 700;
+}
+
+.aori-ai-draft p {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.aori-ai-modal__dialog {
+  width: min(760px, 100%);
+  max-height: min(90vh, 820px);
+  overflow: auto;
+}
+
+.aori-ai-modal__lead,
+.aori-ai-match-note {
+  color: var(--muted) !important;
+  line-height: 1.6;
+}
+
+.aori-ai-form {
+  display: grid;
+  gap: 12px;
+}
+
+.aori-ai-result {
+  display: grid;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.aori-ai-result textarea {
+  width: 100%;
+  border: 1px solid rgba(31, 35, 64, 0.14);
+  border-radius: 12px;
+  padding: 12px;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.6;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.86);
 }
