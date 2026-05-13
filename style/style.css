@@ -683,6 +683,7 @@ body {
   .nav-links.is-open .import-icon-btn:nth-child(2) { transition-delay: 0.09s; }
   .nav-links.is-open .import-icon-btn:nth-child(3) { transition-delay: 0.15s; }
   .nav-links.is-open .import-icon-btn:nth-child(4) { transition-delay: 0.21s; }
+  .nav-links.is-open .import-icon-btn:nth-child(5) { transition-delay: 0.27s; }
 
 }
 .aori-ai-draft {
@@ -739,4 +740,39 @@ body {
   line-height: 1.6;
   color: var(--text);
   background: rgba(255, 255, 255, 0.86);
+}
+.ai-prompt-header-btn {
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
+}
+
+.ai-prompt-modal__dialog {
+  width: min(760px, 100%);
+  max-height: min(90vh, 820px);
+  overflow: auto;
+}
+
+.ai-prompt-modal__lead {
+  color: var(--muted) !important;
+  line-height: 1.6;
+}
+
+.ai-prompt-field {
+  display: grid;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.ai-prompt-field textarea {
+  width: 100%;
+  border: 1px solid rgba(31, 35, 64, 0.14);
+  border-radius: 12px;
+  padding: 12px;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.6;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.9);
 }

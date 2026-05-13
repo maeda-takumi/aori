@@ -107,6 +107,25 @@
     const aiGenerateButton = document.getElementById('aori-ai-generate');
     const aiCancelButton = aiModal?.querySelector('[data-ai-modal-cancel]');
     const aiBackdrop = aiModal?.querySelector('[data-ai-modal-close]');
+    const aiPromptOpenButton = document.getElementById('ai-prompt-open');
+    const aiPromptModal = document.getElementById('ai-prompt-modal');
+    const aiPromptText = document.getElementById('ai-prompt-text');
+    const aiPromptStatus = document.getElementById('ai-prompt-status');
+    const aiPromptSaveButton = document.getElementById('ai-prompt-save');
+    const aiPromptResetButton = document.getElementById('ai-prompt-reset');
+    const aiPromptCancelButton = aiPromptModal?.querySelector('[data-ai-prompt-cancel]');
+    const aiPromptBackdrop = aiPromptModal?.querySelector('[data-ai-prompt-close]');
+    const defaultAiPromptInstruction = [
+      'あなたはLINEで学習・作業進捗をサポートする担当者です。',
+      '以下の情報と会話ログから、ユーザの直近状況に合わせた自然な進捗確認メッセージを1通だけ作成してください。',
+      '条件:',
+      '- 日本語で、LINEにそのまま貼り付けられる文面にする',
+      '- 相手を責めず、前向きで返信しやすい文面にする',
+      '- 直近でユーザが行っていること、困っていること、止まっている箇所があれば具体的に触れる',
+      '- 180文字以内を目安にする',
+      '- 件名、説明、候補リスト、引用符は付けず、送信文のみを返す'
+    ].join('\n');
+    const aiPromptStorageKey = 'aori.aiPromptInstruction';
     let currentAiContact = null;
 
     const hideModal = () => {
@@ -155,6 +174,72 @@
       aiStatus.hidden = hidden || message.length === 0;
       aiStatus.textContent = message;
     };
+    const getAiPromptInstruction = () => {
+      const savedPrompt = localStorage.getItem(aiPromptStorageKey);
+      return savedPrompt && savedPrompt.trim().length > 0 ? savedPrompt : defaultAiPromptInstruction;
+    };
+
+    const setAiPromptStatus = (message, hidden = false) => {
+      if (!aiPromptStatus) {
+        return;
+      }
+      aiPromptStatus.hidden = hidden || message.length === 0;
+      aiPromptStatus.textContent = message;
+    };
+
+    const closeHeaderNav = () => {
+      if (!navToggleButton || !headerNavLinks) {
+        return;
+      }
+      navToggleButton.setAttribute('aria-expanded', 'false');
+      headerNavLinks.classList.remove('is-open');
+    };
+
+    const hideAiPromptModal = () => {
+      if (!aiPromptModal) {
+        return;
+      }
+      aiPromptModal.hidden = true;
+      setAiPromptStatus('', true);
+    };
+
+    const showAiPromptModal = () => {
+      if (!aiPromptModal || !(aiPromptText instanceof HTMLTextAreaElement)) {
+        return;
+      }
+      aiPromptText.value = getAiPromptInstruction();
+      setAiPromptStatus('', true);
+      aiPromptModal.hidden = false;
+      closeHeaderNav();
+      aiPromptText.focus();
+    };
+
+    const saveAiPromptInstruction = () => {
+      if (!(aiPromptText instanceof HTMLTextAreaElement)) {
+        return;
+      }
+      const promptInstruction = aiPromptText.value.trim();
+      if (promptInstruction.length === 0) {
+        setAiPromptStatus('プロンプトを入力してください。');
+        return;
+      }
+      if (promptInstruction.length > 8000) {
+        setAiPromptStatus('プロンプトは8000文字以内で入力してください。');
+        return;
+      }
+      localStorage.setItem(aiPromptStorageKey, promptInstruction);
+      setAiPromptStatus('AIプロンプトを保存しました。');
+    };
+
+    const resetAiPromptInstruction = () => {
+      if (!(aiPromptText instanceof HTMLTextAreaElement)) {
+        return;
+      }
+      aiPromptText.value = defaultAiPromptInstruction;
+      localStorage.removeItem(aiPromptStorageKey);
+      setAiPromptStatus('初期プロンプトに戻しました。');
+    };
+
 
     const hideAiModal = () => {
       if (!aiModal) {
@@ -301,7 +386,8 @@
             contact_id: String(currentAiContact.contactId),
             line_user_id: currentAiContact.lineUserId,
             lstep_user_id: lstepUserId,
-            model: aiModelSelect.value
+            model: aiModelSelect.value,
+            prompt_instruction: getAiPromptInstruction()
           })
         });
 
@@ -638,6 +724,11 @@
     });
     aoriLabelCancelButton?.addEventListener('click', hideAoriLabelModal);
     aoriLabelBackdrop?.addEventListener('click', hideAoriLabelModal);
+    aiPromptOpenButton?.addEventListener('click', showAiPromptModal);
+    aiPromptCancelButton?.addEventListener('click', hideAiPromptModal);
+    aiPromptBackdrop?.addEventListener('click', hideAiPromptModal);
+    aiPromptSaveButton?.addEventListener('click', saveAiPromptInstruction);
+    aiPromptResetButton?.addEventListener('click', resetAiPromptInstruction);
     aiCancelButton?.addEventListener('click', hideAiModal);
     aiBackdrop?.addEventListener('click', hideAiModal);
     aiGenerateButton?.addEventListener('click', generateAiMessage);

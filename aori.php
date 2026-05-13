@@ -54,9 +54,9 @@ $ownerOptions = [
     'hasegawa' => '長谷川',
 ];
 $geminiModelOptions = [
-    'gemini-3.1-flash-lite' => 'Gemini 3.1 Flash Lite',
     'gemini-2.5-flash' => 'Gemini 2.5 Flash',
     'gemini-2.5-flash-lite' => 'Gemini 2.5 Flash Lite',
+    'gemini-3.1-flash-lite-preview' => 'Gemini 3.1 Flash Lite（Preview）',
 ];
 
 function send_json_response(array $payload, int $statusCode = 200): void
@@ -231,13 +231,8 @@ function call_gemini_api(string $model, string $prompt): string
     return $text;
 }
 
-function build_ai_prompt(array $contact, array $lstepUser, array $messages): string
+function get_default_ai_prompt_instruction(): string
 {
-    $conversationText = build_conversation_text($messages);
-    if ($conversationText === '') {
-        $conversationText = '会話ログがありません。';
-    }
-
     return "あなたはLINEで学習・作業進捗をサポートする担当者です。\n"
         . "以下の情報と会話ログから、ユーザの直近状況に合わせた自然な進捗確認メッセージを1通だけ作成してください。\n"
         . "条件:\n"
@@ -245,7 +240,22 @@ function build_ai_prompt(array $contact, array $lstepUser, array $messages): str
         . "- 相手を責めず、前向きで返信しやすい文面にする\n"
         . "- 直近でユーザが行っていること、困っていること、止まっている箇所があれば具体的に触れる\n"
         . "- 180文字以内を目安にする\n"
-        . "- 件名、説明、候補リスト、引用符は付けず、送信文のみを返す\n\n"
+        . "- 件名、説明、候補リスト、引用符は付けず、送信文のみを返す";
+}
+
+function build_ai_prompt(array $contact, array $lstepUser, array $messages, string $customPromptInstruction = ''): string
+{
+    $conversationText = build_conversation_text($messages);
+    if ($conversationText === '') {
+        $conversationText = '会話ログがありません。';
+    }
+
+    $promptInstruction = trim($customPromptInstruction);
+    if ($promptInstruction === '') {
+        $promptInstruction = get_default_ai_prompt_instruction();
+    }
+
+    return $promptInstruction . "\n\n"
         . "【煽り一覧側ユーザ】" . (string)($contact['line_display_name'] ?? '') . "\n"
         . "【システム表示名】" . (string)($contact['system_display_name'] ?? '') . "\n"
         . "【対応マーク】" . (string)($contact['support_mark'] ?? '') . "\n"
@@ -633,6 +643,7 @@ try {
         $lineUserId = trim((string)($_POST['line_user_id'] ?? ''));
         $lstepUserId = filter_input(INPUT_POST, 'lstep_user_id', FILTER_VALIDATE_INT);
         $model = trim((string)($_POST['model'] ?? ''));
+        $customPromptInstruction = trim((string)($_POST['prompt_instruction'] ?? ''));
 
         if ($contactId === false || $contactId === null || $contactId <= 0) {
             send_json_response(['status' => 'error', 'message' => '更新対象のIDが不正です。'], 400);
@@ -646,7 +657,9 @@ try {
         if (!array_key_exists($model, $geminiModelOptions)) {
             send_json_response(['status' => 'error', 'message' => 'Geminiモデルが不正です。'], 400);
         }
-
+        if (mb_strlen($customPromptInstruction) > 8000) {
+            send_json_response(['status' => 'error', 'message' => 'プロンプトは8000文字以内で入力してください。'], 400);
+        }
         try {
             $contactStmt = $pdo->prepare(
                 'SELECT
@@ -672,7 +685,7 @@ try {
             }
 
             [$lstepUser, $conversationMessages] = fetch_lstep_conversation($lstepUserId);
-            $prompt = build_ai_prompt($contact, $lstepUser, $conversationMessages);
+            $prompt = build_ai_prompt($contact, $lstepUser, $conversationMessages, $customPromptInstruction);
             $generatedMessage = call_gemini_api($model, $prompt);
 
             $pdo->beginTransaction();
