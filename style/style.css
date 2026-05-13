@@ -776,3 +776,39 @@ body {
   color: var(--text);
   background: rgba(255, 255, 255, 0.9);
 }
+
+.aori-ai-model-card {
+  border: 1px solid rgba(87, 106, 255, 0.2);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(87, 106, 255, 0.12), rgba(255, 255, 255, 0.92));
+  box-shadow: 0 10px 24px rgba(31, 35, 64, 0.08);
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+}
+
+.aori-ai-model-card__badge {
+  align-items: center;
+  background: rgba(87, 106, 255, 0.16);
+  border-radius: 999px;
+  color: #3644c7;
+  display: inline-flex;
+  font-size: 0.82rem;
+  font-weight: 800;
+  justify-content: center;
+  justify-self: start;
+  padding: 4px 10px;
+}
+
+.aori-ai-model-card__limit {
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.aori-ai-model-card__feature {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.5;
+}

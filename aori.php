@@ -54,9 +54,30 @@ $ownerOptions = [
     'hasegawa' => '長谷川',
 ];
 $geminiModelOptions = [
-    'gemini-2.5-flash' => 'Gemini 2.5 Flash',
-    'gemini-2.5-flash-lite' => 'Gemini 2.5 Flash Lite',
-    'gemini-3.1-flash-lite-preview' => 'Gemini 3.1 Flash Lite（Preview）',
+    'gemini-3.1-flash-lite-preview' => [
+        'label' => '🏆 Gemini 3.1 Flash-Lite Preview',
+        'short_label' => 'Gemini 3.1 Flash-Lite Preview',
+        'badge' => '性能最優先',
+        'limit' => '1日上限: 要AI Studio確認（Preview）',
+        'feature' => '3モデル中ベンチマーク最上位。高速・低遅延で進捗確認文の品質も狙いやすいが、Previewのため挙動や上限が変わる可能性があります。',
+        'rank' => '一番優秀',
+    ],
+    'gemini-2.5-flash' => [
+        'label' => '⚖️ Gemini 2.5 Flash',
+        'short_label' => 'Gemini 2.5 Flash',
+        'badge' => '安定・バランス',
+        'limit' => '無料枠: 250回/日・10回/分',
+        'feature' => '安定版で、品質・速度・使いやすさのバランスが良いモデル。Previewを避けたい通常運用に向いています。',
+        'rank' => '安定運用',
+    ],
+    'gemini-2.5-flash-lite' => [
+        'label' => '⚡ Gemini 2.5 Flash-Lite',
+        'short_label' => 'Gemini 2.5 Flash-Lite',
+        'badge' => '上限多め・低コスト',
+        'limit' => '無料枠: 1,000回/日・15回/分',
+        'feature' => '3モデル中もっとも軽量で、日次上限に余裕があります。大量生成や簡単な文面作成を優先するときに向いています。',
+        'rank' => '大量生成',
+    ],
 ];
 
 function send_json_response(array $payload, int $statusCode = 200): void
@@ -726,7 +747,7 @@ try {
                 'message' => 'AIメッセージを生成しました。',
                 'generated_message' => $generatedMessage,
                 'model' => $model,
-                'model_label' => $geminiModelOptions[$model],
+                'model_label' => $geminiModelOptions[$model]['short_label'],
                 'lstep_user_id' => $lstepUserId,
                 'lstep_line_name' => (string)($lstepUser['line_name'] ?? ''),
             ]);
@@ -937,7 +958,7 @@ require __DIR__ . '/header.php';
                 <div class="aori-ai-draft">
                   <span class="aori-ai-draft__meta">
                     AI下書き<?= !empty($row['ai_generated_at']) ? '（' . htmlspecialchars((string)$row['ai_generated_at'], ENT_QUOTES, 'UTF-8') . '）' : ''; ?>
-                    <?= !empty($row['ai_model']) ? ' / ' . htmlspecialchars((string)($geminiModelOptions[(string)$row['ai_model']] ?? $row['ai_model']), ENT_QUOTES, 'UTF-8') : ''; ?>
+                    <?= !empty($row['ai_model']) ? ' / ' . htmlspecialchars((string)($geminiModelOptions[(string)$row['ai_model']]['short_label'] ?? $row['ai_model']), ENT_QUOTES, 'UTF-8') : ''; ?>
                   </span>
                   <p><?= nl2br(htmlspecialchars((string)$row['ai_generated_message'], ENT_QUOTES, 'UTF-8')); ?></p>
                 </div>
@@ -1064,10 +1085,21 @@ require __DIR__ . '/header.php';
       <label class="aori-filter-field">
         Geminiモデル
         <select id="aori-ai-model" name="model">
-          <?php foreach ($geminiModelOptions as $modelValue => $modelLabel): ?>
-            <option value="<?= htmlspecialchars($modelValue, ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($modelLabel, ENT_QUOTES, 'UTF-8'); ?></option>
+          <?php foreach ($geminiModelOptions as $modelValue => $modelInfo): ?>
+            <option
+              value="<?= htmlspecialchars($modelValue, ENT_QUOTES, 'UTF-8'); ?>"
+              data-badge="<?= htmlspecialchars($modelInfo['badge'], ENT_QUOTES, 'UTF-8'); ?>"
+              data-limit="<?= htmlspecialchars($modelInfo['limit'], ENT_QUOTES, 'UTF-8'); ?>"
+              data-feature="<?= htmlspecialchars($modelInfo['feature'], ENT_QUOTES, 'UTF-8'); ?>"
+              data-rank="<?= htmlspecialchars($modelInfo['rank'], ENT_QUOTES, 'UTF-8'); ?>"
+            ><?= htmlspecialchars($modelInfo['label'] . '｜' . $modelInfo['badge'] . '｜' . $modelInfo['limit'], ENT_QUOTES, 'UTF-8'); ?></option>
           <?php endforeach; ?>
         </select>
+        <div class="aori-ai-model-card" id="aori-ai-model-card" aria-live="polite">
+          <span class="aori-ai-model-card__badge" id="aori-ai-model-badge"></span>
+          <span class="aori-ai-model-card__limit" id="aori-ai-model-limit"></span>
+          <span class="aori-ai-model-card__feature" id="aori-ai-model-feature"></span>
+        </div>
       </label>
       <label class="aori-filter-field">
         やり取りユーザ

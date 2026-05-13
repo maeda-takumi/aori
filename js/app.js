@@ -100,6 +100,10 @@
 
     const aiModal = document.getElementById('aori-ai-modal');
     const aiModelSelect = document.getElementById('aori-ai-model');
+    const aiModelCard = document.getElementById('aori-ai-model-card');
+    const aiModelBadge = document.getElementById('aori-ai-model-badge');
+    const aiModelLimit = document.getElementById('aori-ai-model-limit');
+    const aiModelFeature = document.getElementById('aori-ai-model-feature');
     const aiUserSelect = document.getElementById('aori-ai-lstep-user');
     const aiMatchNote = document.getElementById('aori-ai-match-note');
     const aiStatus = document.getElementById('aori-ai-modal-status');
@@ -173,6 +177,30 @@
       }
       aiStatus.hidden = hidden || message.length === 0;
       aiStatus.textContent = message;
+    };
+    const updateAiModelCard = () => {
+      if (!(aiModelSelect instanceof HTMLSelectElement) || !aiModelCard) {
+        return;
+      }
+
+      const selectedOption = aiModelSelect.selectedOptions[0];
+      if (!selectedOption) {
+        aiModelCard.hidden = true;
+        return;
+      }
+
+      if (aiModelBadge) {
+        const rank = selectedOption.dataset.rank || '';
+        const badge = selectedOption.dataset.badge || '';
+        aiModelBadge.textContent = [rank, badge].filter(Boolean).join(' / ');
+      }
+      if (aiModelLimit) {
+        aiModelLimit.textContent = selectedOption.dataset.limit || '';
+      }
+      if (aiModelFeature) {
+        aiModelFeature.textContent = selectedOption.dataset.feature || '';
+      }
+      aiModelCard.hidden = false;
     };
     const getAiPromptInstruction = () => {
       const savedPrompt = localStorage.getItem(aiPromptStorageKey);
@@ -326,6 +354,7 @@
       if (currentAiContact.aiModel && Array.from(aiModelSelect.options).some((option) => option.value === currentAiContact.aiModel)) {
         aiModelSelect.value = currentAiContact.aiModel;
       }
+      updateAiModelCard();
       if (aiResult instanceof HTMLTextAreaElement) {
         aiResult.value = '';
       }
@@ -731,6 +760,8 @@
     aiPromptResetButton?.addEventListener('click', resetAiPromptInstruction);
     aiCancelButton?.addEventListener('click', hideAiModal);
     aiBackdrop?.addEventListener('click', hideAiModal);
+    aiModelSelect?.addEventListener('change', updateAiModelCard);
+    updateAiModelCard();
     aiGenerateButton?.addEventListener('click', generateAiMessage);
   });
 })();
