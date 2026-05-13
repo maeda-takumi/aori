@@ -11,3 +11,5 @@ dist/
 config.php
 # Import status cache
 storage/import_status.json
+# AI prompt settings cache
+storage/ai_prompt_instruction.json

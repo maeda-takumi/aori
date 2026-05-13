@@ -49,7 +49,7 @@ if (is_file($importStatusPath) && is_readable($importStatusPath)) {
         <span></span>
       </button>
       <div class="nav-links" id="header-nav-links">
-        <!-- <button type="button" class="import-icon-btn ai-prompt-header-btn" id="ai-prompt-open" aria-label="AIプロンプトを変更">AI</button> -->
+        <button type="button" class="import-icon-btn ai-prompt-header-btn" id="ai-prompt-open" aria-label="AIプロンプトを変更">AI</button>
         <a href="index.php" class="import-icon-btn" aria-label="ホーム画面へ移動">
             <img src="img/home.png" alt="ホーム">
         </a>
@@ -70,7 +70,7 @@ if (is_file($importStatusPath) && is_readable($importStatusPath)) {
     <div class="chat-modal__backdrop" data-ai-prompt-close></div>
     <div class="chat-modal__dialog glass ai-prompt-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="ai-prompt-modal-title">
       <h3 id="ai-prompt-modal-title">AIプロンプト設定</h3>
-      <p class="ai-prompt-modal__lead">AI生成ボタンで下書きを作るときの指示文を変更できます。保存内容はこのブラウザに保存されます。</p>
+      <p class="ai-prompt-modal__lead">AI生成ボタンで下書きを作るときの指示文を変更できます。保存内容はサーバー上のローカルJSONファイルに保存され、AI生成時に使用されます。</p>
       <label class="ai-prompt-field">
         プロンプト
         <textarea id="ai-prompt-text" rows="12"></textarea>

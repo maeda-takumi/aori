@@ -312,17 +312,77 @@ function get_default_ai_prompt_instruction(): string
         . "- 件名、説明、候補リスト、引用符は付けず、送信文のみを返す";
 }
 
-function build_ai_prompt(array $contact, array $lstepUser, array $messages, string $customPromptInstruction = ''): string
+function get_ai_prompt_config_path(): string
+{
+    return __DIR__ . '/storage/ai_prompt_instruction.json';
+}
+
+function ensure_ai_prompt_storage_directory(): void
+{
+    $storageDir = dirname(get_ai_prompt_config_path());
+    if (is_dir($storageDir)) {
+        return;
+    }
+
+    if (!mkdir($storageDir, 0775, true) && !is_dir($storageDir)) {
+        throw new RuntimeException('AIプロンプト保存先ディレクトリを作成できませんでした。');
+    }
+}
+
+function read_ai_prompt_instruction(): string
+{
+    $promptPath = get_ai_prompt_config_path();
+    if (!is_file($promptPath) || !is_readable($promptPath)) {
+        return get_default_ai_prompt_instruction();
+    }
+
+    $rawPromptConfig = file_get_contents($promptPath);
+    if ($rawPromptConfig === false) {
+        return get_default_ai_prompt_instruction();
+    }
+
+    $decodedPromptConfig = json_decode($rawPromptConfig, true);
+    if (!is_array($decodedPromptConfig)) {
+        return get_default_ai_prompt_instruction();
+    }
+
+    $promptInstruction = trim((string)($decodedPromptConfig['prompt_instruction'] ?? ''));
+    return $promptInstruction !== '' ? $promptInstruction : get_default_ai_prompt_instruction();
+}
+
+function save_ai_prompt_instruction(string $promptInstruction): void
+{
+    $normalizedPrompt = trim($promptInstruction);
+    if ($normalizedPrompt === '') {
+        throw new RuntimeException('プロンプトを入力してください。');
+    }
+    if (mb_strlen($normalizedPrompt) > 8000) {
+        throw new RuntimeException('プロンプトは8000文字以内で入力してください。');
+    }
+
+    ensure_ai_prompt_storage_directory();
+    $payload = [
+        'prompt_instruction' => $normalizedPrompt,
+        'updated_at' => date(DATE_ATOM),
+    ];
+    $encodedPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    if ($encodedPayload === false) {
+        throw new RuntimeException('AIプロンプト設定のJSON変換に失敗しました。');
+    }
+
+    if (file_put_contents(get_ai_prompt_config_path(), $encodedPayload . "\n", LOCK_EX) === false) {
+        throw new RuntimeException('AIプロンプト設定ファイルに保存できませんでした。');
+    }
+}
+
+function build_ai_prompt(array $contact, array $lstepUser, array $messages): string
 {
     $conversationText = build_conversation_text($messages);
     if ($conversationText === '') {
         $conversationText = '会話ログがありません。';
     }
 
-    $promptInstruction = trim($customPromptInstruction);
-    if ($promptInstruction === '') {
-        $promptInstruction = get_default_ai_prompt_instruction();
-    }
+    $promptInstruction = read_ai_prompt_instruction();
 
     return $promptInstruction . "\n\n"
         . "【煽り一覧側ユーザ】" . (string)($contact['line_display_name'] ?? '') . "\n"
@@ -335,6 +395,48 @@ function build_ai_prompt(array $contact, array $lstepUser, array $messages, stri
         . "【会話ログ】\n" . $conversationText;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $promptAction = (string)($_POST['action'] ?? '');
+    if ($promptAction === 'get_ai_prompt_instruction') {
+        send_json_response([
+            'status' => 'ok',
+            'prompt_instruction' => read_ai_prompt_instruction(),
+            'is_default' => !is_file(get_ai_prompt_config_path()),
+        ]);
+    }
+
+    if ($promptAction === 'save_ai_prompt_instruction') {
+        try {
+            save_ai_prompt_instruction((string)($_POST['prompt_instruction'] ?? ''));
+            send_json_response([
+                'status' => 'ok',
+                'message' => 'AIプロンプトをローカルJSONファイルに保存しました。',
+                'prompt_instruction' => read_ai_prompt_instruction(),
+            ]);
+        } catch (Throwable $e) {
+            send_json_response([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], 400);
+        }
+    }
+
+    if ($promptAction === 'reset_ai_prompt_instruction') {
+        try {
+            save_ai_prompt_instruction(get_default_ai_prompt_instruction());
+            send_json_response([
+                'status' => 'ok',
+                'message' => '初期プロンプトをローカルJSONファイルに保存しました。',
+                'prompt_instruction' => read_ai_prompt_instruction(),
+            ]);
+        } catch (Throwable $e) {
+            send_json_response([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], 400);
+        }
+    }
+}
 $selectedOwner = $_GET['owner_filter'] ?? 'all';
 if (!array_key_exists($selectedOwner, $ownerOptions)) {
     $selectedOwner = 'all';
@@ -726,9 +828,6 @@ try {
         if (!array_key_exists($model, $geminiModelOptions)) {
             send_json_response(['status' => 'error', 'message' => 'Geminiモデルが不正です。'], 400);
         }
-        if (mb_strlen($customPromptInstruction) > 8000) {
-            send_json_response(['status' => 'error', 'message' => 'プロンプトは8000文字以内で入力してください。'], 400);
-        }
         try {
             $contactStmt = $pdo->prepare(
                 'SELECT
@@ -754,7 +853,7 @@ try {
             }
 
             [$lstepUser, $conversationMessages] = fetch_lstep_conversation($lstepUserId);
-            $prompt = build_ai_prompt($contact, $lstepUser, $conversationMessages, $customPromptInstruction);
+            $prompt = build_ai_prompt($contact, $lstepUser, $conversationMessages);
             $generatedMessage = call_gemini_api($model, $prompt);
 
             $pdo->beginTransaction();

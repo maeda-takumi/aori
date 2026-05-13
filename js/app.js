@@ -130,7 +130,6 @@
       '- 180文字以内を目安にする',
       '- 件名、説明、候補リスト、引用符は付けず、送信文のみを返す'
     ].join('\n');
-    const aiPromptStorageKey = 'aori.aiPromptInstruction';
     let currentAiContact = null;
 
     const hideModal = () => {
@@ -258,9 +257,62 @@
       }
       aiModelCard.hidden = false;
     };
-    const getAiPromptInstruction = () => {
-      const savedPrompt = localStorage.getItem(aiPromptStorageKey);
-      return savedPrompt && savedPrompt.trim().length > 0 ? savedPrompt : defaultAiPromptInstruction;
+    const fetchAiPromptInstruction = async () => {
+      const response = await fetch('aori.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+        },
+        body: new URLSearchParams({
+          action: 'get_ai_prompt_instruction'
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok || result.status !== 'ok') {
+        throw new Error(result.message || 'AIプロンプトの取得に失敗しました。');
+      }
+
+      return result.prompt_instruction || defaultAiPromptInstruction;
+    };
+
+    const requestAiPromptSave = async (promptInstruction) => {
+      const response = await fetch('aori.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+        },
+        body: new URLSearchParams({
+          action: 'save_ai_prompt_instruction',
+          prompt_instruction: promptInstruction
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok || result.status !== 'ok') {
+        throw new Error(result.message || 'AIプロンプトの保存に失敗しました。');
+      }
+
+      return result;
+    };
+
+    const requestAiPromptReset = async () => {
+      const response = await fetch('aori.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+        },
+        body: new URLSearchParams({
+          action: 'reset_ai_prompt_instruction'
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok || result.status !== 'ok') {
+        throw new Error(result.message || 'AIプロンプトの初期化に失敗しました。');
+      }
+
+      return result;
     };
 
     const setAiPromptStatus = (message, hidden = false) => {
@@ -287,18 +339,26 @@
       setAiPromptStatus('', true);
     };
 
-    const showAiPromptModal = () => {
+    const showAiPromptModal = async () => {
       if (!aiPromptModal || !(aiPromptText instanceof HTMLTextAreaElement)) {
         return;
       }
-      aiPromptText.value = getAiPromptInstruction();
-      setAiPromptStatus('', true);
+      aiPromptText.value = '';
+      setAiPromptStatus('AIプロンプトを読み込んでいます...');
       aiPromptModal.hidden = false;
       closeHeaderNav();
+
+      try {
+        aiPromptText.value = await fetchAiPromptInstruction();
+        setAiPromptStatus('', true);
+      } catch (error) {
+        aiPromptText.value = defaultAiPromptInstruction;
+        setAiPromptStatus(error instanceof Error ? error.message : 'AIプロンプトの取得に失敗しました。');
+      }
       aiPromptText.focus();
     };
 
-    const saveAiPromptInstruction = () => {
+    const saveAiPromptInstruction = async () => {
       if (!(aiPromptText instanceof HTMLTextAreaElement)) {
         return;
       }
@@ -311,17 +371,43 @@
         setAiPromptStatus('プロンプトは8000文字以内で入力してください。');
         return;
       }
-      localStorage.setItem(aiPromptStorageKey, promptInstruction);
-      setAiPromptStatus('AIプロンプトを保存しました。');
+      if (aiPromptSaveButton instanceof HTMLButtonElement) {
+        aiPromptSaveButton.disabled = true;
+      }
+      setAiPromptStatus('AIプロンプトを保存しています...');
+
+      try {
+        const result = await requestAiPromptSave(promptInstruction);
+        setAiPromptStatus(result.message || 'AIプロンプトをローカルJSONファイルに保存しました。');
+      } catch (error) {
+        setAiPromptStatus(error instanceof Error ? error.message : 'AIプロンプトの保存に失敗しました。');
+      } finally {
+        if (aiPromptSaveButton instanceof HTMLButtonElement) {
+          aiPromptSaveButton.disabled = false;
+        }
+      }
     };
 
-    const resetAiPromptInstruction = () => {
+    const resetAiPromptInstruction = async () => {
       if (!(aiPromptText instanceof HTMLTextAreaElement)) {
         return;
       }
-      aiPromptText.value = defaultAiPromptInstruction;
-      localStorage.removeItem(aiPromptStorageKey);
-      setAiPromptStatus('初期プロンプトに戻しました。');
+      if (aiPromptResetButton instanceof HTMLButtonElement) {
+        aiPromptResetButton.disabled = true;
+      }
+      setAiPromptStatus('初期プロンプトを保存しています...');
+
+      try {
+        const result = await requestAiPromptReset();
+        aiPromptText.value = result.prompt_instruction || defaultAiPromptInstruction;
+        setAiPromptStatus(result.message || '初期プロンプトをローカルJSONファイルに保存しました。');
+      } catch (error) {
+        setAiPromptStatus(error instanceof Error ? error.message : 'AIプロンプトの初期化に失敗しました。');
+      } finally {
+        if (aiPromptResetButton instanceof HTMLButtonElement) {
+          aiPromptResetButton.disabled = false;
+        }
+      }
     };
 
 
@@ -473,8 +559,7 @@
             contact_id: String(currentAiContact.contactId),
             line_user_id: currentAiContact.lineUserId,
             lstep_user_id: lstepUserId,
-            model: aiModelSelect.value,
-            prompt_instruction: getAiPromptInstruction()
+            model: aiModelSelect.value
           })
         });
 
